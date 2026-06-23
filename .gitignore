@@ -1,0 +1,8 @@
+.vs/
+*.user
+*.suo
+Ecommerce.API/bin/
+Ecommerce.API/obj/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
