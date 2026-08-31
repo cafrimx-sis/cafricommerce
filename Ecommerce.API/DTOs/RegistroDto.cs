@@ -10,5 +10,8 @@
         public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public string ConfirmPassword { get; set; } = string.Empty;
+        public string Telefono { get; set; } = string.Empty;
+        public string CodigoPostal { get; set; } = string.Empty;
+        public string Colonia { get; set; } = string.Empty;
     }
 }

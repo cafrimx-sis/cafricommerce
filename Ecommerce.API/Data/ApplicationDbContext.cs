@@ -1,45 +1,62 @@
-﻿using Ecommerce.API.Entities;
+﻿using Ecommerce.API.DTOs;
+using Ecommerce.API.Entities;
 using Microsoft.EntityFrameworkCore;
-using System.Reflection.Emit;
 
 namespace Ecommerce.API.Data
 {
     public class ApplicationDbContext : DbContext
     {
-        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
-        {
-        }
+        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
 
-        // Definimos las tablas de la Base de Datos
         public DbSet<Producto> Productos { get; set; }
         public DbSet<Categoria> Categorias { get; set; }
+        public DbSet<SubCategoria> SubCategorias { get; set; }
         public DbSet<Marca> Marcas { get; set; }
         public DbSet<Usuario> Usuarios { get; set; }
         public DbSet<DireccionEnvio> DireccionesEnvio { get; set; }
         public DbSet<ZonaEnvio> ZonasEnvio { get; set; }
         public DbSet<Orden> Ordenes { get; set; }
         public DbSet<OrdenDetalle> OrdenesDetalles { get; set; }
+        public DbSet<Pedido> Pedidos { get; set; }
+        public DbSet<DetallePedido> DetallePedidos { get; set; }
+        public DbSet<Venta> Ventas { get; set; }
+        public DbSet<DetalleVenta> DetalleVentas { get; set; }
+        public DbSet<CorteCaja> CortesCaja { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
-            // 1. Configuración de Categorías y Subcategorías (Autorreferenciada)
+            // Categorías
             modelBuilder.Entity<Categoria>()
                 .HasOne(c => c.CategoriaPadre)
                 .WithMany(c => c.Subcategorias)
                 .HasForeignKey(c => c.CategoriaPadreId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // 2. Configurar el SKU de Producto como único para evitar duplicados
+            // Producto - Configuración de SubCategoría (Evita ciclos de borrado)
+            modelBuilder.Entity<Producto>()
+                .HasOne(p => p.SubCategoria)
+                .WithMany()
+                .HasForeignKey(p => p.SubCategoriaId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             modelBuilder.Entity<Producto>()
                 .HasIndex(p => p.SKU)
                 .IsUnique();
 
-            // 3. Definir la precisión para el precio en SQL Server (Evita alertas en la consola)
             modelBuilder.Entity<Producto>()
                 .Property(p => p.PrecioPublico)
-                .HasColumnType("decimal(18,2)");
+                .HasPrecision(18, 2);
+
+            // Configuración de Pedidos
+            modelBuilder.Entity<Pedido>()
+                .Property(p => p.Total)
+                .HasPrecision(18, 2);
+
+            modelBuilder.Entity<DetallePedido>()
+                .Property(p => p.PrecioUnitario)
+                .HasPrecision(18, 2);
         }
     }
 }

@@ -42,7 +42,10 @@ namespace Ecommerce.API.Controllers
                 Direccion = dto.Direccion,
                 Email = dto.Email.ToLower().Trim(),
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
-                Rol = "Cliente"
+                Rol = "Cliente",
+                Telefono = dto.Telefono,
+                CodigoPostal = dto.CodigoPostal,
+                Colonia = dto.Colonia
             };
 
             _context.Usuarios.Add(nuevoUsuario);
@@ -82,6 +85,36 @@ namespace Ecommerce.API.Controllers
                 nombre = $"{usuario.Nombre} {usuario.ApellidoPaterno}",
                 rol = rolParaToken
             });
+        }
+
+        [HttpPut("cambiar-rol/{id}")]
+        [Authorize(Roles = "Administrador")]
+        public async Task<IActionResult> CambiarRol(int id, [FromBody] RolDto dto)
+        {
+            var usuario = await _context.Usuarios.FindAsync(id);
+            if (usuario == null) return NotFound(new { mensaje = "Usuario no encontrado." });
+
+            // Validamos que el rol sea válido
+            if (dto.Rol != "Cliente" && dto.Rol != "Administrador")
+                return BadRequest(new { mensaje = "Rol no válido." });
+
+            usuario.Rol = dto.Rol;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { mensaje = $"Rol actualizado a {dto.Rol} correctamente." });
+        }
+
+        [HttpDelete("eliminar/{id}")]
+        [Authorize(Roles = "Administrador")]
+        public async Task<IActionResult> EliminarUsuario(int id)
+        {
+            var usuario = await _context.Usuarios.FindAsync(id);
+            if (usuario == null) return NotFound(new { mensaje = "Usuario no encontrado." });
+
+            _context.Usuarios.Remove(usuario);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { mensaje = "Usuario eliminado correctamente." });
         }
 
         [HttpGet("listar")]

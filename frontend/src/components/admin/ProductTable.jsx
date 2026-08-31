@@ -1,93 +1,304 @@
-import React from 'react';
+import React, { useState } from 'react';
+import api from "../../lib/api"; 
 
-export default function ProductTable({ products, loading, error, onEdit, onDelete, onAddNew, onDirectImageUpload }) {
-  if (loading) return <p style={{ color: '#3182ce', fontWeight: 'bold' }}>Cargando Mini Splits y equipos desde la base de datos...</p>;
+export default function ProductTable({ products = [], loading, error, onEdit, onDelete, onAddNew }) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('ALL');
+  const [selectedSubCategory, setSelectedSubCategory] = useState('ALL');
+  const [selectedBrand, setSelectedBrand] = useState('ALL');
+  const [stockFilter, setStockFilter] = useState('ALL');
+
+  if (loading) return <p style={{ color: '#3182ce', fontWeight: 'bold', padding: '20px' }}>Cargando equipos...</p>;
   if (error) return <div style={{ backgroundColor: '#fed7d7', color: '#9b2c2c', padding: '15px', borderRadius: '6px', marginBottom: '20px' }}>⚠️ Error: {error}</div>;
 
-  const BACKEND_URL = 'https://localhost:7163';
+  const BASE_URL = api.defaults?.baseURL ? api.defaults.baseURL.replace(/\/api$/, '') : 'http://localhost:5104';
+
+  const categories = [...new Set(products.map(p => p.category || p.Categoria?.nombre || 'General'))];
+  const subCategories = [...new Set(products.map(p => p.subCategory || p.SubCategoria?.nombre || 'N/A'))];
+  const brands = [...new Set(products.map(p => p.brand || p.Marca?.nombre || 'N/A'))];
+
+  const filteredProducts = products.filter(item => {
+    const nombreProd = item.nombre || item.name || '';
+    const skuProd = item.sku || '';
+    const catProd = item.category || item.Categoria?.nombre || 'General';
+    const subCatProd = item.subCategory || item.SubCategoria?.nombre || 'N/A';
+    const brandProd = item.brand || item.Marca?.nombre || 'N/A';
+    const stock = item.stock ?? 0;
+
+    const matchesSearch = nombreProd.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          skuProd.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesCategory = selectedCategory === 'ALL' || catProd === selectedCategory;
+    const matchesSubCategory = selectedSubCategory === 'ALL' || subCatProd === selectedSubCategory;
+    const matchesBrand = selectedBrand === 'ALL' || brandProd === selectedBrand;
+
+    let matchesStock = true;
+    if (stockFilter === 'IN_STOCK') matchesStock = stock > 0;
+    if (stockFilter === 'OUT_OF_STOCK') matchesStock = stock <= 0;
+
+    return matchesSearch && matchesCategory && matchesSubCategory && matchesBrand && matchesStock;
+  });
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2 style={{ color: '#2d3748', margin: 0 }}>Gestión de Inventario (CAFRI)</h2>
+    <div style={{ padding: '16px', maxWidth: '1400px', margin: '0 auto', boxSizing: 'border-box' }}>
+      <style>{`
+        .product-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 20px;
+          gap: 12px;
+        }
+
+        .product-header h2 {
+          color: #2d3748;
+          margin: 0;
+          font-size: 1.4rem;
+        }
+
+        .btn-add-product {
+          padding: 10px 18px;
+          background-color: #38a169;
+          color: white;
+          border: none;
+          border-radius: 6px;
+          font-weight: bold;
+          cursor: pointer;
+          white-space: nowrap;
+          font-size: 0.9rem;
+          transition: background-color 0.2s;
+        }
+
+        .filter-container {
+          display: flex;
+          gap: 12px;
+          margin-bottom: 20px;
+          flex-wrap: wrap;
+          background-color: white;
+          padding: 16px;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+          border: 1px solid #e2e8f0;
+        }
+
+        .filter-search {
+          flex: 1 1 240px;
+        }
+
+        .filter-select {
+          flex: 1 1 150px;
+        }
+
+        .filter-control {
+          width: 100%;
+          padding: 10px 12px;
+          border-radius: 6px;
+          border: 1px solid #cbd5e0;
+          outline: none;
+          background-color: white;
+          font-size: 14px;
+          box-sizing: border-box;
+        }
+
+        .table-wrapper {
+          background-color: white;
+          border-radius: 8px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          border: 1px solid #edf2f7;
+        }
+
+        .product-table {
+          width: 100%;
+          min-width: 720px;
+          border-collapse: collapse;
+          text-align: left;
+        }
+
+        @media (max-width: 650px) {
+          .product-header {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .product-header h2 {
+            font-size: 1.25rem;
+            text-align: center;
+          }
+
+          .btn-add-product {
+            width: 100%;
+            padding: 12px;
+            font-size: 1rem;
+          }
+
+          .filter-container {
+            padding: 12px;
+            gap: 10px;
+          }
+
+          .filter-select, .filter-search {
+            flex: 1 1 100%;
+          }
+        }
+      `}</style>
+
+      <div className="product-header">
+        <h2>Gestión de Inventario (CAFRI)</h2>
         <button 
+          type="button"
+          className="btn-add-product"
           onClick={onAddNew}
-          style={{ padding: '10px 15px', backgroundColor: '#38a169', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}
         >
           ➕ Agregar Nuevo Equipo
         </button>
       </div>
 
-      <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+      <div className="filter-container">
+        <div className="filter-search">
+          <input 
+            type="text" 
+            placeholder="🔍 Buscar nombre o SKU..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="filter-control"
+          />
+        </div>
+
+        <div className="filter-select">
+          <select 
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="filter-control"
+          >
+            <option value="ALL">Todas Categorías</option>
+            {categories.map((cat, idx) => (
+              <option key={idx} value={cat}>{cat}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="filter-select">
+          <select 
+            value={selectedSubCategory}
+            onChange={(e) => setSelectedSubCategory(e.target.value)}
+            className="filter-control"
+          >
+            <option value="ALL">Todas Subcategorías</option>
+            {subCategories.map((sub, idx) => (
+              <option key={idx} value={sub}>{sub}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="filter-select">
+          <select 
+            value={selectedBrand}
+            onChange={(e) => setSelectedBrand(e.target.value)}
+            className="filter-control"
+          >
+            <option value="ALL">Todas las Marcas</option>
+            {brands.map((brand, idx) => (
+              <option key={idx} value={brand}>{brand}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="filter-select">
+          <select 
+            value={stockFilter}
+            onChange={(e) => setStockFilter(e.target.value)}
+            className="filter-control"
+          >
+            <option value="ALL">Todo Stock</option>
+            <option value="IN_STOCK">Con Stock</option>
+            <option value="OUT_OF_STOCK">Agotados</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="table-wrapper">
+        <table className="product-table">
           <thead>
             <tr style={{ backgroundColor: '#ebf8ff', color: '#2c5282' }}>
-              <th style={{ padding: '15px', width: '90px', textAlign: 'center' }}>Foto</th>
-              <th style={{ padding: '15px' }}>SKU</th>
-              <th style={{ padding: '15px' }}>Producto</th>
-              <th style={{ padding: '15px' }}>Precio Público</th>
-              <th style={{ padding: '15px' }}>Stock</th>
-              <th style={{ padding: '15px', textAlign: 'center' }}>Acciones</th>
+              <th style={{ padding: '14px', width: '70px', textAlign: 'center' }}>Foto</th>
+              <th style={{ padding: '14px', width: '130px' }}>SKU</th>
+              <th style={{ padding: '14px', minWidth: '220px' }}>Producto / Detalle</th>
+              <th style={{ padding: '14px', width: '120px' }}>Precio</th>
+              <th style={{ padding: '14px', width: '90px' }}>Stock</th>
+              <th style={{ padding: '14px', width: '140px', textAlign: 'center' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {products.length === 0 ? (
+            {filteredProducts.length === 0 ? (
               <tr>
-                <td colSpan="6" style={{ padding: '20px', textAlign: 'center', color: '#718096' }}>No hay equipos registrados.</td>
+                <td colSpan="6" style={{ padding: '30px', textAlign: 'center', color: '#718096' }}>
+                  No se encontraron equipos que coincidan con los filtros seleccionados.
+                </td>
               </tr>
             ) : (
-              products.map((item) => {
-                const idClave = item.productoId || item.ProductoId || item.id;
-                const rutaImg = item.image || item.Image || item.imageUrl || item.rutaImagen;
+              filteredProducts.map((item) => {
+                const idClave = item.productoId || item.id || item.ProductoId;
+                
+                // Validación estricta para evitar URLs rotas si el campo está vacío o null
+                let rutaImg = item.image || item.imageUrl || item.rutaImagen || item.imagenUrl;
+                if (!rutaImg || rutaImg.trim() === "" || rutaImg.toLowerCase() === "null") {
+                  rutaImg = null;
+                }
+
+                const nombreProd = item.nombre || item.name || 'Equipo sin nombre';
+                const descProd = item.descripcion || item.description || '';
+                const marcaProd = item.brand || item.Marca?.nombre || '';
+                const precioProd = Number(item.precioPublico || item.price || 0);
+                const stockDisponible = item.stock ?? 0;
 
                 return (
                   <tr key={idClave} style={{ borderBottom: '1px solid #edf2f7' }}>
-                    <td style={{ padding: '10px', textAlign: 'center', verticalAlign: 'middle' }}>
-                      <div style={{ position: 'relative', display: 'inline-block' }}>
-                        {rutaImg ? (
-                          <div style={{ position: 'relative' }}>
-                            <img 
-                              src={
-                                (rutaImg.startsWith('http')) 
-                                  ? rutaImg 
-                                  : `${BACKEND_URL}${rutaImg}`
-                              } 
-                              alt="Miniatura" 
-                              style={{ width: '45px', height: '45px', objectFit: 'contain', borderRadius: '4px', border: '1px solid #cbd5e0', backgroundColor: '#f7fafc' }} 
-                              onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/45x45?text=📷"; }}
-                            />
-                            <label htmlFor={`file-table-${idClave}`} style={{ position: 'absolute', bottom: '-2px', right: '-2px', backgroundColor: '#3182ce', color: 'white', borderRadius: '50%', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} title="Cambiar Foto">
-                              🔄
-                            </label>
-                          </div>
-                        ) : (
-                          <label htmlFor={`file-table-${idClave}`} style={{ padding: '5px 8px', backgroundColor: '#ebf8ff', color: '#2b6cb0', border: '1px dashed #63b3ed', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'inline-block' }}>
-                            📁 Subir
-                          </label>
-                        )}
-
-                        <input 
-                          id={`file-table-${idClave}`}
-                          type="file" 
-                          accept="image/png, image/jpeg"
-                          style={{ display: 'none' }} 
-                          onChange={(e) => {
-                            if (e.target.files && e.target.files[0]) {
-                              if (typeof onDirectImageUpload === 'function') {
-                                onDirectImageUpload(idClave, e.target.files[0]);
-                              }
-                            }
-                          }}
-                        />
-                      </div>
+                    <td style={{ padding: '10px', textAlign: 'center' }}>
+                      <img 
+                        src={
+                          rutaImg 
+                            ? (rutaImg.startsWith('http') ? rutaImg : `${BASE_URL}${rutaImg.startsWith('/') ? '' : '/productos/'}${rutaImg}`) 
+                            : "https://placehold.co/45x45?text=📷"
+                        } 
+                        alt={nombreProd} 
+                        style={{ width: '45px', height: '45px', objectFit: 'contain', borderRadius: '4px', backgroundColor: '#f7fafc' }}
+                      />
                     </td>
-                    <td style={{ padding: '15px', fontFamily: 'monospace', color: '#4a5568', verticalAlign: 'middle' }}>{item.sku || item.SKU}</td>
-                    <td style={{ padding: '15px', fontWeight: 'bold', color: '#1a202c', verticalAlign: 'middle' }}>{item.nombre || item.Nombre || item.name}</td>
-                    <td style={{ padding: '15px', verticalAlign: 'middle' }}>${Number(item.precioPublico || item.PrecioPublico || item.price || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN</td>
-                    <td style={{ padding: '15px', fontWeight: 'bold', color: (item.stock ?? item.Stock) > 0 ? '#38a169' : '#e53e3e', verticalAlign: 'middle' }}>{item.stock ?? item.Stock ?? 0} pzas</td>
-                    <td style={{ padding: '15px', textAlign: 'center', verticalAlign: 'middle' }}>
-                      <button onClick={() => onEdit(item)} style={{ marginRight: '15px', background: 'none', border: 'none', color: '#3182ce', cursor: 'pointer', fontWeight: 'bold', textDecoration: 'underline' }}>Editar ✏️</button>
-                      <button onClick={() => onDelete(idClave)} style={{ background: 'none', border: 'none', color: '#e53e3e', cursor: 'pointer', fontWeight: 'bold', textDecoration: 'underline' }}>Eliminar 🗑️</button>
+                    <td style={{ padding: '14px', fontFamily: 'monospace', fontSize: '0.9rem', color: '#4a5568' }}>
+                      {item.sku || 'N/A'}
+                    </td>
+                    <td style={{ padding: '14px' }}>
+                      <div style={{ fontWeight: '600', color: '#2d3748', fontSize: '0.95rem' }}>{nombreProd}</div>
+                      {descProd && (
+                        <div style={{ fontSize: '0.8rem', color: '#718096', maxWidth: '280px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {descProd}
+                        </div>
+                      )}
+                      {marcaProd && <div style={{ fontSize: '0.78rem', color: '#a0aec0', marginTop: '2px' }}>Marca: {marcaProd}</div>}
+                    </td>
+                    <td style={{ padding: '14px', fontWeight: '500', color: '#2d3748', whiteSpace: 'nowrap' }}>
+                      ${precioProd.toLocaleString()} MXN
+                    </td>
+                    <td style={{ padding: '14px', color: stockDisponible > 0 ? '#38a169' : '#e53e3e', fontWeight: 'bold' }}>
+                      {stockDisponible}
+                    </td>
+                    <td style={{ padding: '14px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                      <button 
+                        type="button"
+                        onClick={() => onEdit(item)} 
+                        style={{ marginRight: '8px', color: '#3182ce', border: 'none', background: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.9rem', padding: '4px' }}
+                      >
+                        ✏️ Editar
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => onDelete(idClave)} 
+                        style={{ color: '#e53e3e', border: 'none', background: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.9rem', padding: '4px' }}
+                      >
+                        🗑️ Eliminar
+                      </button>
                     </td>
                   </tr>
                 );

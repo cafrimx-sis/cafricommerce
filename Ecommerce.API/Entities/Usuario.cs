@@ -12,5 +12,8 @@
         public string PasswordHash { get; set; } = string.Empty;
         public string Rol { get; set; } = "Cliente";
         public DateTime FechaRegistro { get; set; } = DateTime.UtcNow;
+        public string Telefono { get; set; } = string.Empty;
+        public string CodigoPostal { get; set; } = string.Empty;
+        public string Colonia { get; set; } = string.Empty;
     }
 }

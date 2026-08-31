@@ -1,90 +1,117 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import api from '../lib/api'; // Asegúrate de que la ruta importe tu api.js centralizado
+import api from '../lib/api'; 
+import loginImage from '../assets/login.jpg';
 
 export default function Login({ onLoginSuccess }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [formData, setFormData] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  const inputStyle = { 
+    width: '100%', 
+    padding: '12px', 
+    margin: '4px 0 14px 0', 
+    border: '1px solid #cbd5e0', 
+    borderRadius: '6px', 
+    fontSize: '14px', 
+    boxSizing: 'border-box',
+    backgroundColor: '#ffffff'
+  };
+
+  const labelStyle = { 
+    fontSize: '11px', 
+    fontWeight: '700', 
+    color: '#2d3748', 
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px' 
+  };
+
+  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    
     try {
-      // Usamos la instancia 'api' configurada en api.js
-      // La ruta base y el puerto 7107 ya están definidos ahí
-      const response = await api.post('/auth/login', { 
-        email, 
-        password 
-      });
-
-      // Guardamos la información en localStorage
+      const response = await api.post('/auth/login', { email: formData.email, password: formData.password });
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data));
-      
-      // Notificamos al componente App.jsx del éxito
       onLoginSuccess(response.data);
       navigate('/');
     } catch (err) {
-      console.error("Error de login:", err);
-      alert("Correo o contraseña incorrectos");
+      alert("Error: " + (err.response?.data?.mensaje || "Credenciales incorrectas"));
     } finally {
       setLoading(false);
     }
   };
 
-  const inputStyle = {
-    width: '100%',
-    padding: '12px',
-    margin: '8px 0 16px 0',
-    border: '1px solid #cbd5e0',
-    borderRadius: '8px',
-    fontSize: '14px',
-    boxSizing: 'border-box'
-  };
-
   return (
-    <div style={{ 
-      display: 'flex', justifyContent: 'center', alignItems: 'center', 
-      minHeight: '100vh', backgroundColor: '#f7fafc', padding: '20px' 
-    }}>
-      <div style={{ 
-        backgroundColor: 'white', padding: '40px', borderRadius: '12px', 
-        boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px' 
-      }}>
-        <h2 style={{ color: '#1a365d', textAlign: 'center', marginBottom: '10px' }}>Bienvenido a CAFRI</h2>
-        <p style={{ textAlign: 'center', color: '#718096', marginBottom: '30px', fontSize: '14px' }}>
-          Inicia sesión para continuar
-        </p>
+    <div style={{ fontFamily: "'Inter', sans-serif" }}>
+      <style>{`
+        .login-wrapper {
+          display: flex;
+          min-height: 100vh;
+          width: 100%;
+        }
 
-        <form onSubmit={handleSubmit}>
-          <label style={{ fontSize: '12px', color: '#4a5568', fontWeight: 'bold' }}>Correo Electrónico</label>
-          <input 
-            type="email" required onChange={(e) => setEmail(e.target.value)} 
-            style={inputStyle} placeholder="ejemplo@gmail.com" 
-          />
+        .login-form-side {
+          flex: 1;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          padding: 30px;
+          background-color: white;
+          box-sizing: border-box;
+        }
 
-          <label style={{ fontSize: '12px', color: '#4a5568', fontWeight: 'bold' }}>Contraseña</label>
-          <input 
-            type="password" required onChange={(e) => setPassword(e.target.value)} 
-            style={inputStyle} placeholder="••••••••" 
-          />
+        .login-image-side {
+          flex: 1.2;
+          position: relative;
+          background-color: #1a365d;
+        }
 
-          <button type="submit" disabled={loading} style={{ 
-            width: '100%', padding: '14px', backgroundColor: '#1a365d', 
-            color: 'white', border: 'none', borderRadius: '8px', 
-            fontSize: '16px', fontWeight: 'bold', cursor: loading ? 'not-allowed' : 'pointer',
-            marginTop: '10px' 
-          }}>
-            {loading ? 'Validando...' : 'Iniciar Sesión'}
-          </button>
-        </form>
+        @media (max-width: 850px) {
+          .login-image-side {
+            display: none;
+          }
+          .login-form-side {
+            padding: 24px 16px;
+          }
+        }
+      `}</style>
 
-        <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '14px' }}>
-          ¿Eres nuevo? <Link to="/registro" style={{ color: '#3182ce', fontWeight: 'bold' }}>Crea tu cuenta aquí</Link>
-        </p>
+      <div className="login-wrapper">
+        <div className="login-form-side">
+          <div style={{ width: '100%', maxWidth: '380px' }}>
+            <h1 style={{ fontSize: '28px', marginBottom: '8px', color: '#1a365d', fontWeight: '800' }}>Bienvenido</h1>
+            <p style={{ color: '#718096', marginBottom: '24px', fontSize: '14px' }}>Ingresa tus credenciales para acceder a CAFRI</p>
+            
+            <form onSubmit={handleSubmit}>
+              <label style={labelStyle}>Correo Electrónico</label>
+              <input name="email" type="email" onChange={handleChange} style={inputStyle} placeholder="usuario@ejemplo.com" required />
+              
+              <label style={labelStyle}>Contraseña</label>
+              <input name="password" type="password" onChange={handleChange} style={inputStyle} placeholder="••••••••" required />
+              
+              <button type="submit" disabled={loading} style={{ 
+                width: '100%', padding: '12px', backgroundColor: '#1a365d', color: 'white', 
+                border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', 
+                fontSize: '14px', marginTop: '6px' 
+              }}>
+                {loading ? 'Ingresando...' : 'INGRESAR'}
+              </button>
+            </form>
+
+            <p style={{ marginTop: '20px', textAlign: 'center', fontSize: '13px', color: '#4a5568' }}>
+              ¿No tienes cuenta? <Link to="/registro" style={{ color: '#3182ce', fontWeight: 'bold', textDecoration: 'none' }}>Regístrate aquí</Link>
+            </p>
+          </div>
+        </div>
+
+        <div className="login-image-side">
+          <img src={loginImage} alt="Login Background" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.9 }} />
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(26, 54, 93, 0.3)' }}></div>
+        </div>
       </div>
     </div>
   );
