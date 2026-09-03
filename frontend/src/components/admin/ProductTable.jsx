@@ -1,10 +1,13 @@
 import React from 'react';
+// Asegúrate de que esta ruta sea correcta según tu estructura de carpetas
+import api from "../../lib/api"; 
 
 export default function ProductTable({ products, loading, error, onEdit, onDelete, onAddNew, onDirectImageUpload }) {
-  if (loading) return <p style={{ color: '#3182ce', fontWeight: 'bold' }}>Cargando Mini Splits y equipos desde la base de datos...</p>;
+  if (loading) return <p style={{ color: '#3182ce', fontWeight: 'bold' }}>Cargando equipos...</p>;
   if (error) return <div style={{ backgroundColor: '#fed7d7', color: '#9b2c2c', padding: '15px', borderRadius: '6px', marginBottom: '20px' }}>⚠️ Error: {error}</div>;
 
-  const BACKEND_URL = 'https://localhost:7163';
+  // ✅ CORREGIDO: Extraemos la raíz dinámicamente y dejamos el puerto activo (5104) como salvavidas
+  const BASE_URL = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/api$/, '') : 'http://localhost:5104';
 
   return (
     <div>
@@ -25,7 +28,7 @@ export default function ProductTable({ products, loading, error, onEdit, onDelet
               <th style={{ padding: '15px', width: '90px', textAlign: 'center' }}>Foto</th>
               <th style={{ padding: '15px' }}>SKU</th>
               <th style={{ padding: '15px' }}>Producto</th>
-              <th style={{ padding: '15px' }}>Precio Público</th>
+              <th style={{ padding: '15px' }}>Precio</th>
               <th style={{ padding: '15px' }}>Stock</th>
               <th style={{ padding: '15px', textAlign: 'center' }}>Acciones</th>
             </tr>
@@ -37,57 +40,36 @@ export default function ProductTable({ products, loading, error, onEdit, onDelet
               </tr>
             ) : (
               products.map((item) => {
-                const idClave = item.productoId || item.ProductoId || item.id;
-                const rutaImg = item.image || item.Image || item.imageUrl || item.rutaImagen;
+                // Mapeo tolerante a propiedades en inglés o español para evitar componentes vacíos
+                const idClave = item.productoId || item.id || item.ProductoId;
+                const rutaImg = item.image || item.imageUrl || item.rutaImagen || item.imagenUrl;
+                const nombreProd = item.nombre || item.name || 'Equipo sin nombre';
+                const precioProd = Number(item.precioPublico || item.price || 0);
+                const stockDisponible = item.stock ?? 0;
 
                 return (
                   <tr key={idClave} style={{ borderBottom: '1px solid #edf2f7' }}>
-                    <td style={{ padding: '10px', textAlign: 'center', verticalAlign: 'middle' }}>
-                      <div style={{ position: 'relative', display: 'inline-block' }}>
-                        {rutaImg ? (
-                          <div style={{ position: 'relative' }}>
-                            <img 
-                              src={
-                                (rutaImg.startsWith('http')) 
-                                  ? rutaImg 
-                                  : `${BACKEND_URL}${rutaImg}`
-                              } 
-                              alt="Miniatura" 
-                              style={{ width: '45px', height: '45px', objectFit: 'contain', borderRadius: '4px', border: '1px solid #cbd5e0', backgroundColor: '#f7fafc' }} 
-                              onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/45x45?text=📷"; }}
-                            />
-                            <label htmlFor={`file-table-${idClave}`} style={{ position: 'absolute', bottom: '-2px', right: '-2px', backgroundColor: '#3182ce', color: 'white', borderRadius: '50%', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} title="Cambiar Foto">
-                              🔄
-                            </label>
-                          </div>
-                        ) : (
-                          <label htmlFor={`file-table-${idClave}`} style={{ padding: '5px 8px', backgroundColor: '#ebf8ff', color: '#2b6cb0', border: '1px dashed #63b3ed', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'inline-block' }}>
-                            📁 Subir
-                          </label>
-                        )}
-
-                        <input 
-                          id={`file-table-${idClave}`}
-                          type="file" 
-                          accept="image/png, image/jpeg"
-                          style={{ display: 'none' }} 
-                          onChange={(e) => {
-                            if (e.target.files && e.target.files[0]) {
-                              if (typeof onDirectImageUpload === 'function') {
-                                onDirectImageUpload(idClave, e.target.files[0]);
-                              }
-                            }
-                          }}
-                        />
-                      </div>
+                    <td style={{ padding: '10px', textAlign: 'center' }}>
+                      {/* ✅ CORREGIDO: Se añade el timestamp único (?t=...) para obligar al navegador a recargar la miniatura */}
+                      <img 
+                        src={
+                          rutaImg 
+                            ? `${rutaImg.startsWith('http') ? rutaImg : `${BASE_URL}${rutaImg}`}?t=${new Date().getTime()}` 
+                            : "https://placehold.co/45x45?text=📷"
+                        } 
+                        alt="Producto" 
+                        style={{ width: '45px', height: '45px', objectFit: 'contain', borderRadius: '4px' }}
+                      />
                     </td>
-                    <td style={{ padding: '15px', fontFamily: 'monospace', color: '#4a5568', verticalAlign: 'middle' }}>{item.sku || item.SKU}</td>
-                    <td style={{ padding: '15px', fontWeight: 'bold', color: '#1a202c', verticalAlign: 'middle' }}>{item.nombre || item.Nombre || item.name}</td>
-                    <td style={{ padding: '15px', verticalAlign: 'middle' }}>${Number(item.precioPublico || item.PrecioPublico || item.price || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN</td>
-                    <td style={{ padding: '15px', fontWeight: 'bold', color: (item.stock ?? item.Stock) > 0 ? '#38a169' : '#e53e3e', verticalAlign: 'middle' }}>{item.stock ?? item.Stock ?? 0} pzas</td>
-                    <td style={{ padding: '15px', textAlign: 'center', verticalAlign: 'middle' }}>
-                      <button onClick={() => onEdit(item)} style={{ marginRight: '15px', background: 'none', border: 'none', color: '#3182ce', cursor: 'pointer', fontWeight: 'bold', textDecoration: 'underline' }}>Editar ✏️</button>
-                      <button onClick={() => onDelete(idClave)} style={{ background: 'none', border: 'none', color: '#e53e3e', cursor: 'pointer', fontWeight: 'bold', textDecoration: 'underline' }}>Eliminar 🗑️</button>
+                    <td style={{ padding: '15px', fontFamily: 'monospace' }}>{item.sku || 'N/A'}</td>
+                    <td style={{ padding: '15px', fontWeight: 'bold' }}>{nombreProd}</td>
+                    <td style={{ padding: '15px' }}>${precioProd.toLocaleString()} MXN</td>
+                    <td style={{ padding: '15px', color: stockDisponible > 0 ? '#38a169' : '#e53e3e', fontWeight: 'bold' }}>
+                      {stockDisponible}
+                    </td>
+                    <td style={{ padding: '15px', textAlign: 'center' }}>
+                      <button onClick={() => onEdit(item)} style={{ marginRight: '10px', color: '#3182ce', border: 'none', background: 'none', cursor: 'pointer', fontWeight: 'bold' }}>✏️ Editar</button>
+                      <button onClick={() => onDelete(idClave)} style={{ color: '#e53e3e', border: 'none', background: 'none', cursor: 'pointer', fontWeight: 'bold' }}>🗑️ Eliminar</button>
                     </td>
                   </tr>
                 );

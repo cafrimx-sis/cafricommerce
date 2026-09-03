@@ -8,7 +8,7 @@ namespace Ecommerce.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Roles = "Administrador")] // Bloqueo global
+    [Authorize(Roles = "Administrador")] // Bloqueo global para administradores
     public class MarcasController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -46,6 +46,57 @@ namespace Ecommerce.API.Controllers
             await _context.SaveChangesAsync();
 
             return CreatedAtAction(nameof(GetMarca), new { id = marca.MarcaId }, marca);
+        }
+
+        // ✏️ PROTEGIDO: Actualizar una marca existente (PUT /api/marcas/{id})
+        [HttpPut("{id}")]
+        public async Task<IActionResult> PutMarca(int id, Marca marca)
+        {
+            if (id != marca.MarcaId)
+            {
+                return BadRequest(new { mensaje = "El ID de la marca no coincide." });
+            }
+
+            _context.Entry(marca).State = EntityState.Modified;
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!MarcaExists(id))
+                {
+                    return NotFound(new { mensaje = "La marca no existe." });
+                }
+                else
+                {
+                    throw;
+                }
+            }
+
+            return NoContent();
+        }
+
+        // 🗑️ PROTEGIDO: Eliminar una marca (DELETE /api/marcas/{id})
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteMarca(int id)
+        {
+            var marca = await _context.Marcas.FindAsync(id);
+            if (marca == null)
+            {
+                return NotFound(new { mensaje = "La marca no existe." });
+            }
+
+            _context.Marcas.Remove(marca);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        private bool MarcaExists(int id)
+        {
+            return _context.Marcas.Any(e => e.MarcaId == id);
         }
     }
 }

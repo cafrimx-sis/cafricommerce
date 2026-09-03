@@ -10,37 +10,41 @@ namespace Ecommerce.API.Entities
         public int Id { get; set; }
 
         [Required]
-        public int UsuarioId { get; set; } // Quién compra
+        public int UsuarioId { get; set; }
 
         [Required]
-        public int DireccionEnvioId { get; set; } // A dónde se envía
+        public int DireccionEnvioId { get; set; }
 
         public DateTime FechaOrden { get; set; } = DateTime.UtcNow;
 
         [Required]
         [Column(TypeName = "decimal(18,2)")]
-        public decimal Subtotal { get; set; } // Suma de productos antes de impuestos
+        public decimal Subtotal { get; set; }
 
         [Required]
         [Column(TypeName = "decimal(18,2)")]
-        public decimal Iva { get; set; } // 16% de IVA obligatorio
+        public decimal Iva { get; set; }
 
         [Required]
         [Column(TypeName = "decimal(18,2)")]
-        public decimal CostoFlete { get; set; } // Costo de envío calculado por la zona
+        public decimal CostoFlete { get; set; }
 
         [Required]
         [Column(TypeName = "decimal(18,2)")]
-        public decimal Total { get; set; } // Subtotal + Iva + Flete (Lo que cobramos en PayPal)
+        public decimal Total { get; set; }
 
         [Required]
-        [StringLength(30)]
-        public string EstadoOrden { get; set; } = "Pendiente"; // Pendiente, Pagado, En Almacen, Enviado, Bajo Pedido
+        [StringLength(50)] // Aumentado de 30 a 50 para mayor seguridad
+        public string EstadoOrden { get; set; } = "Pendiente";
 
         [StringLength(50)]
         public string MetodoPago { get; set; } = "PayPal";
 
         [StringLength(100)]
-        public string? PayPalOrderId { get; set; } // Para rastrear la transacción con los servidores de PayPal
+        public string? PayPalOrderId { get; set; }
+
+        // --- NUEVOS CAMPOS ---
+        [StringLength(50)]
+        public string? ReferenciaPago { get; set; } // Agregado para OXXO
     }
 }

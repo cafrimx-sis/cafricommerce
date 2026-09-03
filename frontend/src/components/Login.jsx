@@ -1,90 +1,104 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import api from '../lib/api'; // Asegúrate de que la ruta importe tu api.js centralizado
+import { Link } from 'react-router-dom';
+import api from '../lib/api'; 
+import loginAnimation from '../assets/login-animation.gif';
 
 export default function Login({ onLoginSuccess }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [formData, setFormData] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
+
+  const inputStyle = { 
+    width: '100%', 
+    padding: '10px 12px', 
+    margin: '4px 0 12px 0', 
+    border: '2px solid #cbd5e0', 
+    borderRadius: '8px', 
+    fontSize: '14px', 
+    boxSizing: 'border-box',
+    backgroundColor: '#ffffff'
+  };
+
+  const labelStyle = { 
+    fontSize: '11px', 
+    fontWeight: '800', 
+    color: '#2d3748', 
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px' 
+  };
+
+  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    
     try {
-      // Usamos la instancia 'api' configurada en api.js
-      // La ruta base y el puerto 7107 ya están definidos ahí
-      const response = await api.post('/auth/login', { 
-        email, 
-        password 
-      });
-
-      // Guardamos la información en localStorage
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data));
-      
-      // Notificamos al componente App.jsx del éxito
+      const response = await api.post('/auth/login', { email: formData.email, password: formData.password });
       onLoginSuccess(response.data);
-      navigate('/');
     } catch (err) {
-      console.error("Error de login:", err);
-      alert("Correo o contraseña incorrectos");
+      const mensajeError = err.response?.data?.mensaje || "Credenciales incorrectas";
+      alert("Error: " + mensajeError);
     } finally {
       setLoading(false);
     }
   };
 
-  const inputStyle = {
-    width: '100%',
-    padding: '12px',
-    margin: '8px 0 16px 0',
-    border: '1px solid #cbd5e0',
-    borderRadius: '8px',
-    fontSize: '14px',
-    boxSizing: 'border-box'
-  };
-
   return (
-    <div style={{ 
-      display: 'flex', justifyContent: 'center', alignItems: 'center', 
-      minHeight: '100vh', backgroundColor: '#f7fafc', padding: '20px' 
-    }}>
-      <div style={{ 
-        backgroundColor: 'white', padding: '40px', borderRadius: '12px', 
-        boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px' 
-      }}>
-        <h2 style={{ color: '#1a365d', textAlign: 'center', marginBottom: '10px' }}>Bienvenido a CAFRI</h2>
-        <p style={{ textAlign: 'center', color: '#718096', marginBottom: '30px', fontSize: '14px' }}>
-          Inicia sesión para continuar
-        </p>
+    <div style={{ display: 'flex', height: '100vh', width: '100%', overflow: 'hidden', fontFamily: "'Inter', sans-serif", boxSizing: 'border-box' }}>
+      <style>{`
+        .login-card { animation: fadeIn 0.8s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .input-modern:focus { border-color: #3182ce !important; outline: none; box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.2); }
+        .btn-hover:hover { transform: scale(1.02); background-color: #2a4a7a !important; }
+        .spinner { border: 3px solid rgba(255,255,255,0.3); width: 20px; height: 20px; border-radius: 50%; border-top-color: #fff; animation: spin 1s linear infinite; display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
 
-        <form onSubmit={handleSubmit}>
-          <label style={{ fontSize: '12px', color: '#4a5568', fontWeight: 'bold' }}>Correo Electrónico</label>
-          <input 
-            type="email" required onChange={(e) => setEmail(e.target.value)} 
-            style={inputStyle} placeholder="ejemplo@gmail.com" 
-          />
+      {/* Formulario */}
+      <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px', backgroundColor: 'white', boxSizing: 'border-box' }} className="login-card">
+        <div style={{ width: '100%', maxWidth: '360px' }}>
+          <h1 style={{ fontSize: '28px', marginBottom: '6px', color: '#1a365d', fontWeight: '800' }}>Bienvenido</h1>
+          <p style={{ color: '#718096', marginBottom: '20px', fontSize: '13px' }}>Ingresa tus credenciales para acceder a CAFRI</p>
+          
+          <form onSubmit={handleSubmit}>
+            <label style={labelStyle}>Correo Electrónico</label>
+            <input name="email" type="email" onChange={handleChange} className="input-modern" style={inputStyle} placeholder="usuario@ejemplo.com" required />
+            
+            <label style={labelStyle}>Contraseña</label>
+            <input name="password" type="password" onChange={handleChange} className="input-modern" style={inputStyle} placeholder="••••••••" required />
+            
+            {/* Enlaces de ayuda: Recuperar contraseña y Verificar cuenta */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', fontSize: '12px' }}>
+              <Link to="/olvide-password" style={{ color: '#3182ce', fontWeight: '600', textDecoration: 'none' }}>
+                ¿Olvidaste tu contraseña?
+              </Link>
+              <Link to="/verificar-cuenta" style={{ color: '#718096', textDecoration: 'none' }}>
+                Verificar cuenta
+              </Link>
+            </div>
 
-          <label style={{ fontSize: '12px', color: '#4a5568', fontWeight: 'bold' }}>Contraseña</label>
-          <input 
-            type="password" required onChange={(e) => setPassword(e.target.value)} 
-            style={inputStyle} placeholder="••••••••" 
-          />
+            <button type="submit" disabled={loading} className="btn-hover" style={{ 
+              width: '100%', padding: '12px', backgroundColor: '#1a365d', color: 'white', 
+              border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', 
+              fontSize: '14px', transition: '0.2s' 
+            }}>
+              {loading ? <div className="spinner"></div> : 'INGRESAR'}
+            </button>
+          </form>
 
-          <button type="submit" disabled={loading} style={{ 
-            width: '100%', padding: '14px', backgroundColor: '#1a365d', 
-            color: 'white', border: 'none', borderRadius: '8px', 
-            fontSize: '16px', fontWeight: 'bold', cursor: loading ? 'not-allowed' : 'pointer',
-            marginTop: '10px' 
-          }}>
-            {loading ? 'Validando...' : 'Iniciar Sesión'}
-          </button>
-        </form>
+          <p style={{ marginTop: '20px', textAlign: 'center', fontSize: '13px', color: '#4a5568' }}>
+            ¿No tienes cuenta? <Link to="/registro" style={{ color: '#3182ce', fontWeight: 'bold', textDecoration: 'none' }}>Regístrate aquí</Link>
+          </p>
+        </div>
+      </div>
 
-        <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '14px' }}>
-          ¿Eres nuevo? <Link to="/registro" style={{ color: '#3182ce', fontWeight: 'bold' }}>Crea tu cuenta aquí</Link>
-        </p>
+      {/* Panel derecho con el GIF */}
+      <div style={{ flex: 1.2, height: '100%', position: 'relative', backgroundColor: '#1a365d', overflow: 'hidden', boxSizing: 'border-box' }}>
+        <img 
+          src={loginAnimation} 
+          alt="Login Background Animation" 
+          style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.95, display: 'block' }} 
+        />
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(26, 54, 93, 0.1)', pointerEvents: 'none' }}></div>
       </div>
     </div>
   );

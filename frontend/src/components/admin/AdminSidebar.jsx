@@ -1,27 +1,36 @@
 import React from 'react';
 
 export default function AdminSidebar({ adminView, setAdminView }) {
+  const menuItems = [
+    { id: 'overview', label: '📊 Vista General' },
+    { id: 'products', label: '📦 Artículos' },
+    { id: 'categories', label: '🏷️ Gestión de Categorías' },
+    { id: 'brands', label: '🏷️ Gestión de Marcas' },
+    { id: 'users', label: '👥 Control de Usuarios' },
+    { id: 'corte', label: '💵 Corte de Caja' }
+  ];
+
   return (
-    <aside style={{ width: '260px', backgroundColor: '#2d3748', color: 'white', padding: '20px 0' }}>
+    <aside style={{ width: '260px', backgroundColor: '#2d3748', color: 'white', padding: '20px 0', minHeight: '100vh' }}>
       <nav style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-        <button 
-          onClick={() => setAdminView('overview')} 
-          style={{ padding: '12px 20px', textAlign: 'left', background: adminView === 'overview' ? '#4a5568' : 'none', color: 'white', border: 'none', cursor: 'pointer', fontSize: '15px' }}
-        >
-          📊 Vista General
-        </button>
-        <button 
-          onClick={() => setAdminView('products')} 
-          style={{ padding: '12px 20px', textAlign: 'left', background: adminView === 'products' ? '#4a5568' : 'none', color: 'white', border: 'none', cursor: 'pointer', fontSize: '15px' }}
-        >
-          📦 CRUD de Artículos
-        </button>
-        <button 
-          onClick={() => setAdminView('users')} 
-          style={{ padding: '12px 20px', textAlign: 'left', background: adminView === 'users' ? '#4a5568' : 'none', color: 'white', border: 'none', cursor: 'pointer', fontSize: '15px' }}
-        >
-          👥 Control de Usuarios
-        </button>
+        {menuItems.map(item => (
+          <button 
+            key={item.id}
+            onClick={() => setAdminView(item.id)} 
+            style={{ 
+              padding: '12px 20px', 
+              textAlign: 'left', 
+              background: adminView === item.id ? '#4a5568' : 'none', 
+              color: 'white', 
+              border: 'none', 
+              cursor: 'pointer', 
+              fontSize: '15px',
+              transition: 'background 0.2s'
+            }}
+          >
+            {item.label}
+          </button>
+        ))}
       </nav>
     </aside>
   );

@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from 'react';
+import api from "../lib/api";
 import AdminSidebar from './admin/AdminSidebar';
 import ProductTable from './admin/ProductTable';
 import ProductModal from './admin/ProductModal';
 import UserTable from './admin/UserTable';
+import Overview from './admin/Overview';
+import CategoryManager from './admin/CategoryManager';
+import BrandManager from './admin/BrandManager';
+import CorteDeCaja from './CorteDeCaja';
 
 export default function AdminDashboard({ user }) {
-  const [adminView, setAdminView] = useState('products');
+  const [adminView, setAdminView] = useState('overview');
   const [products, setProducts] = useState([]);
   const [categorias, setCategorias] = useState([]);
+  const [subCategorias, setSubCategorias] = useState([]);
+  const [marcas, setMarcas] = useState([]);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // Estados de Búsqueda y Filtros
-  const [busqueda, setBusqueda] = useState('');
-  const [categoriaFiltro, setCategoriaFiltro] = useState('Todas');
-
-  // Estados del Formulario
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
@@ -23,127 +26,151 @@ export default function AdminDashboard({ user }) {
   const [precioPublico, setPrecioPublico] = useState('');
   const [stock, setStock] = useState('');
   const [categoriaId, setCategoriaId] = useState('');
+  const [subCategoriaId, setSubCategoriaId] = useState('');
+  const [mainMarcaId, setMainMarcaId] = useState('');
   const [fotoArchivo, setFotoArchivo] = useState(null);
 
-  const API_URL = 'https://localhost:7163/api/productos';
-
-  // 🌟 FUNCIÓN AUXILIAR: Obtiene el token y lo limpia
-  const getAuthHeaders = () => {
-    const rawToken = localStorage.getItem('token');
-    const token = rawToken ? rawToken.replace(/['"]+/g, '') : null;
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': token ? `Bearer ${token}` : ''
-    };
-  };
-
-  const productosFiltrados = products.filter(item => {
-    const nombreProd = (item.nombre || item.name || '').toLowerCase();
-    const skuProd = (item.sku || item.SKU || '').toLowerCase();
-    const buscaLower = busqueda.toLowerCase();
-    const coincideBusqueda = nombreProd.includes(buscaLower) || skuProd.includes(buscaLower);
-    const coincideCat = categoriaFiltro === 'Todas' || (item.categoriaId?.toString() === categoriaFiltro);
-    return coincideBusqueda && coincideCat;
-  });
+  useEffect(() => {
+    if (adminView === 'products') cargarDatos();
+    if (adminView === 'overview') cargarEstadisticas();
+  }, [adminView]);
 
   const cargarDatos = async () => {
     setLoading(true);
     try {
-      const [resProd, resCat] = await Promise.all([
-        fetch(API_URL, { headers: getAuthHeaders() }),
-        fetch('https://localhost:7163/api/categorias', { headers: getAuthHeaders() })
+      const [resProd, resCat, resSub, resMarcas] = await Promise.all([
+        api.get('/productos'),
+        api.get('/categorias'),
+        api.get('/subcategorias'),
+        api.get('/marcas')
       ]);
+      
+      setProducts(resProd.data);
+      
+      const categoriasMapeadas = (resCat.data || []).map(cat => ({
+        id: cat.id ?? cat.categoriaId ?? cat.CategoriaId,
+        nombre: cat.nombre ?? cat.Nombre ?? 'Sin nombre'
+      }));
+      setCategorias(categoriasMapeadas);
 
-      // Si el servidor responde 401, el token es inválido o expiró
-      if (resProd.status === 401 || resCat.status === 401) {
-        alert("Sesión expirada o sin permisos. Redirigiendo al login...");
-        localStorage.clear();
-        window.location.href = '/login';
-        return;
-      }
+      const subCategoriasMapeadas = (resSub.data || []).map(sub => ({
+        id: sub.id ?? sub.subCategoriaId ?? sub.SubCategoriaId,
+        nombre: sub.nombre ?? sub.Nombre ?? 'Sin nombre',
+        categoriaId: sub.categoriaId ?? sub.CategoriaId ?? sub.categoryId ?? sub.CategoryId
+      }));
+      setSubCategorias(subCategoriasMapeadas);
 
-      setProducts(await resProd.json());
-      setCategorias(await resCat.json());
-    } catch (err) {
-      console.error("Error al cargar:", err);
-    } finally {
-      setLoading(false);
+      const marcasMapeadas = (resMarcas.data || []).map(m => ({
+        id: m.id ?? m.marcaId ?? m.MarcaId,
+        nombre: m.nombre ?? m.Nombre ?? 'Sin nombre'
+      }));
+      setMarcas(marcasMapeadas);
+
+    } catch (err) { 
+      console.error("Error al cargar datos:", err); 
+    } finally { 
+      setLoading(false); 
     }
   };
 
-  useEffect(() => {
-    if (adminView === 'products') cargarDatos();
-  }, [adminView]);
+  const cargarEstadisticas = async () => {
+    try {
+      const res = await api.get('/dashboard/resumen');
+      setStats(res.data);
+    } catch (err) { console.error("Error al cargar stats:", err); }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const catId = parseInt(categoriaId, 10);
+    const subCatId = parseInt(subCategoriaId, 10);
+    const marcaIdNum = parseInt(mainMarcaId, 10);
+
+    if (isNaN(catId) || catId <= 0) {
+        alert("Por favor, selecciona una categoría válida.");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("Sku", sku);
+    formData.append("Name", nombre);
+    formData.append("Price", parseFloat(precioPublico) || 0);
+    formData.append("Stock", parseInt(stock, 10) || 0);
+    formData.append("Description", "Sin descripción");
+    formData.append("CategoriaId", catId);
+    if (!isNaN(subCatId) && subCatId > 0) formData.append("SubCategoriaId", subCatId);
     
-    const bodyData = { 
-      sku, 
-      name: nombre, 
-      price: parseFloat(precioPublico), 
-      stock: parseInt(stock), 
-      description: "Sin descripción", 
-      categoriaId: parseInt(categoriaId), 
-      mainMarcaId: 1 
-    };
-    if (isEditing) bodyData.id = selectedId;
+    if (!isNaN(marcaIdNum) && marcaIdNum > 0) {
+      formData.append("MainMarcaId", marcaIdNum);
+    }
+    
+    if (fotoArchivo) formData.append("file", fotoArchivo);
 
     try {
-      const res = await fetch(isEditing ? `${API_URL}/${selectedId}` : API_URL, {
-        method: isEditing ? 'PUT' : 'POST',
-        headers: getAuthHeaders(), // 🌟 APLICAMOS EL TOKEN AQUÍ
-        body: JSON.stringify(bodyData)
-      });
-
-      if (res.status === 401) {
-        alert("No tienes permiso para realizar esta acción.");
-        return;
+      const config = { headers: { 'Content-Type': 'multipart/form-data' } };
+      if (isEditing) {
+        await api.post(`/productos/update/${selectedId}`, formData, config);
+      } else {
+        await api.post('/productos', formData, config);
       }
-
-      if (!res.ok) throw new Error("Error al procesar la solicitud.");
-      
       alert('Operación exitosa');
       cerrarYLimpiarModal();
       cargarDatos();
     } catch (err) {
-      alert(err.message);
+      console.error("Error:", err.response?.data);
+      alert("Error al guardar.");
     }
   };
 
-  const abrirEditar = (item) => {
+  const handleDelete = async (id) => {
+    if (window.confirm("¿Seguro que deseas eliminar este producto?")) {
+      try {
+        await api.delete(`/productos/${id}`);
+        cargarDatos();
+      } catch (err) { alert("Error al eliminar"); }
+    }
+  };
+
+  const abrirEditar = async (item) => {
+    await cargarDatos();
     setSelectedId(item.productoId || item.id);
-    setSku(item.sku || '');
+    setSku(item.sku || item.SKU || '');
     setNombre(item.nombre || item.name || '');
     setPrecioPublico(item.precioPublico || item.price || '');
     setStock(item.stock ?? '');
-    setCategoriaId(item.categoriaId || '');
+    setCategoriaId(item.categoriaId || item.CategoriaId || '');
+    setSubCategoriaId(item.subCategoriaId || item.SubCategoriaId || '');
+    setMainMarcaId(item.mainMarcaId || item.MainMarcaId || '');
     setIsEditing(true);
     setIsModalOpen(true);
   };
 
   const cerrarYLimpiarModal = () => {
     setIsModalOpen(false); setIsEditing(false); setSelectedId(null);
-    setSku(''); setNombre(''); setPrecioPublico(''); setStock(''); setCategoriaId('');
+    setSku(''); setNombre(''); setPrecioPublico(''); setStock(''); 
+    setCategoriaId(''); setSubCategoriaId(''); setMainMarcaId(''); setFotoArchivo(null);
   };
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f4f6f9' }}>
       <AdminSidebar adminView={adminView} setAdminView={setAdminView} />
-      <main style={{ flex: 1, padding: '40px' }}>
+      <main style={{ flex: 1, padding: '40px', overflowY: 'auto' }}>
+        {adminView === 'overview' && <Overview stats={stats} />}
         {adminView === 'products' && (
-          <div>
-            <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
-              <input type="text" placeholder="🔍 Buscar..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={{ flex: 2, padding: '12px', borderRadius: '5px' }} />
-              <select value={categoriaFiltro} onChange={(e) => setCategoriaFiltro(e.target.value)} style={{ flex: 1, padding: '12px', borderRadius: '5px' }}>
-                <option value="Todas">Todas las Categorías</option>
-                {categorias.map(cat => <option key={cat.id} value={cat.id}>{cat.nombre}</option>)}
-              </select>
-            </div>
-            <ProductTable products={productosFiltrados} loading={loading} onEdit={abrirEditar} onAddNew={() => setIsModalOpen(true)} />
-          </div>
+          <ProductTable 
+            products={products} 
+            loading={loading} 
+            onEdit={abrirEditar} 
+            onDelete={handleDelete} 
+            onAddNew={async () => { await cargarDatos(); setIsModalOpen(true); }} 
+          />
         )}
+        {adminView === 'categories' && <CategoryManager />} 
+        {adminView === 'brands' && <BrandManager />}
+        {adminView === 'users' && <UserTable />}
+        {adminView === 'corte' && <CorteDeCaja />}
       </main>
+      
       <ProductModal 
         isOpen={isModalOpen} 
         isEditing={isEditing} 
@@ -154,7 +181,11 @@ export default function AdminDashboard({ user }) {
         precioPublico={precioPublico} setPrecioPublico={setPrecioPublico} 
         stock={stock} setStock={setStock} 
         categoriaId={categoriaId} setCategoriaId={setCategoriaId} 
+        subCategoriaId={subCategoriaId} setSubCategoriaId={setSubCategoriaId}
+        mainMarcaId={mainMarcaId} setMainMarcaId={setMainMarcaId}
         categorias={categorias} 
+        subCategorias={subCategorias}
+        marcas={marcas}
         setFotoArchivo={setFotoArchivo} 
       />
     </div>

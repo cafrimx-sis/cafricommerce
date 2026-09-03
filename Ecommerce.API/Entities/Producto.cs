@@ -15,11 +15,16 @@
         public bool EsServicio { get; set; } = false; // TRUE para Ingeniería, Proyectos o Servicios Integrales
         public DateTime FechaCreacion { get; set; } = DateTime.Now;
 
+        // 🚀 NUEVA PROPIEDAD: Guarda el nombre o ruta de la foto (ej: "/productos/imagen1.PNG")
+        public string? ImagenUrl { get; set; }
+
         // Llaves foráneas y relaciones
         public int CategoriaId { get; set; }
         public Categoria? Categoria { get; set; }
 
         public int MainMarcaId { get; set; }
         public Marca? Marca { get; set; }
+        public int? SubCategoriaId { get; set; }
+        public SubCategoria? SubCategoria { get; set; } = null!;
     }
 }

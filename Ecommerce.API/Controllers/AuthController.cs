@@ -42,7 +42,10 @@ namespace Ecommerce.API.Controllers
                 Direccion = dto.Direccion,
                 Email = dto.Email.ToLower().Trim(),
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
-                Rol = "Cliente"
+                Rol = "Cliente",
+                Telefono = dto.Telefono,
+                CodigoPostal = dto.CodigoPostal,
+                Colonia = dto.Colonia
             };
 
             _context.Usuarios.Add(nuevoUsuario);
@@ -69,6 +72,7 @@ namespace Ecommerce.API.Controllers
             {
                 Subject = new ClaimsIdentity(new[] {
                     new Claim(ClaimTypes.NameIdentifier, usuario.UsuarioId.ToString()),
+                    new Claim(ClaimTypes.Email, usuario.Email),
                     new Claim("Nombre", $"{usuario.Nombre} {usuario.ApellidoPaterno}"),
                     new Claim(ClaimTypes.Role, rolParaToken)
                 }),
@@ -76,12 +80,132 @@ namespace Ecommerce.API.Controllers
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(llave), SecurityAlgorithms.HmacSha256Signature)
             };
 
+            var token = tokenHandler.WriteToken(tokenHandler.CreateToken(tokenDescriptor));
+            var perfil = MapUsuario(usuario, rolParaToken);
             return Ok(new
             {
-                token = tokenHandler.WriteToken(tokenHandler.CreateToken(tokenDescriptor)),
-                nombre = $"{usuario.Nombre} {usuario.ApellidoPaterno}",
-                rol = rolParaToken
+                token,
+                usuarioId = perfil.UsuarioId,
+                id = perfil.Id,
+                nombre = perfil.Nombre,
+                email = perfil.Email,
+                telefono = perfil.Telefono,
+                direccion = perfil.Direccion,
+                ciudad = perfil.Ciudad,
+                colonia = perfil.Colonia,
+                codigoPostal = perfil.CodigoPostal,
+                rfc = perfil.Rfc,
+                rol = perfil.Rol
             });
+        }
+
+        [HttpGet("perfil")]
+        [Authorize]
+        public async Task<IActionResult> ObtenerPerfil()
+        {
+            var usuario = await ObtenerUsuarioActualAsync();
+            if (usuario == null) return Unauthorized(new { mensaje = "Sesión inválida." });
+            return Ok(MapUsuario(usuario));
+        }
+
+        [HttpPut("perfil")]
+        [Authorize]
+        public async Task<IActionResult> ActualizarPerfil([FromBody] ActualizarPerfilDto dto)
+        {
+            var usuario = await ObtenerUsuarioActualAsync();
+            if (usuario == null) return Unauthorized(new { mensaje = "Sesión inválida." });
+
+            if (!string.IsNullOrWhiteSpace(dto.Nombre))
+            {
+                var partes = dto.Nombre.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+                usuario.Nombre = partes[0];
+                if (partes.Length > 1)
+                    usuario.ApellidoPaterno = partes[1];
+            }
+
+            usuario.Telefono = (dto.Telefono ?? string.Empty).Trim();
+            usuario.Direccion = (dto.Direccion ?? string.Empty).Trim();
+            if (!string.IsNullOrWhiteSpace(dto.Ciudad))
+                usuario.Colonia = dto.Ciudad.Trim();
+
+            await _context.SaveChangesAsync();
+            return Ok(new { mensaje = "Perfil actualizado correctamente.", usuario = MapUsuario(usuario) });
+        }
+
+        [HttpPut("cambiar-password")]
+        [Authorize]
+        public async Task<IActionResult> CambiarPassword([FromBody] CambiarPasswordDto dto)
+        {
+            var usuario = await ObtenerUsuarioActualAsync();
+            if (usuario == null) return Unauthorized(new { mensaje = "Sesión inválida." });
+
+            if (string.IsNullOrWhiteSpace(dto.PasswordNuevo) || dto.PasswordNuevo.Length < 6)
+                return BadRequest(new { mensaje = "La nueva contraseña debe tener al menos 6 caracteres." });
+
+            if (!BCrypt.Net.BCrypt.Verify(dto.PasswordActual, usuario.PasswordHash))
+                return BadRequest(new { mensaje = "La contraseña actual no es correcta." });
+
+            usuario.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.PasswordNuevo);
+            await _context.SaveChangesAsync();
+            return Ok(new { mensaje = "Contraseña actualizada con éxito." });
+        }
+
+        private async Task<Usuario?> ObtenerUsuarioActualAsync()
+        {
+            var idClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(idClaim, out var usuarioId)) return null;
+            return await _context.Usuarios.FindAsync(usuarioId);
+        }
+
+        private static UsuarioSesionDto MapUsuario(Usuario usuario, string? rol = null)
+        {
+            string rolFinal = rol ?? ((usuario.Rol == "Admin" || usuario.Rol == "Administrador") ? "Administrador" : usuario.Rol);
+            var nombreCompleto = $"{usuario.Nombre} {usuario.ApellidoPaterno}".Trim();
+
+            return new UsuarioSesionDto
+            {
+                UsuarioId = usuario.UsuarioId,
+                Id = usuario.UsuarioId,
+                Nombre = string.IsNullOrWhiteSpace(nombreCompleto) ? usuario.Nombre : nombreCompleto,
+                Email = usuario.Email,
+                Telefono = usuario.Telefono,
+                Direccion = usuario.Direccion,
+                Ciudad = usuario.Colonia,
+                Colonia = usuario.Colonia,
+                CodigoPostal = usuario.CodigoPostal,
+                Rfc = string.Empty,
+                Rol = rolFinal
+            };
+        }
+
+        [HttpPut("cambiar-rol/{id}")]
+        [Authorize(Roles = "Administrador")]
+        public async Task<IActionResult> CambiarRol(int id, [FromBody] RolDto dto)
+        {
+            var usuario = await _context.Usuarios.FindAsync(id);
+            if (usuario == null) return NotFound(new { mensaje = "Usuario no encontrado." });
+
+            // Validamos que el rol sea válido
+            if (dto.Rol != "Cliente" && dto.Rol != "Administrador")
+                return BadRequest(new { mensaje = "Rol no válido." });
+
+            usuario.Rol = dto.Rol;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { mensaje = $"Rol actualizado a {dto.Rol} correctamente." });
+        }
+
+        [HttpDelete("eliminar/{id}")]
+        [Authorize(Roles = "Administrador")]
+        public async Task<IActionResult> EliminarUsuario(int id)
+        {
+            var usuario = await _context.Usuarios.FindAsync(id);
+            if (usuario == null) return NotFound(new { mensaje = "Usuario no encontrado." });
+
+            _context.Usuarios.Remove(usuario);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { mensaje = "Usuario eliminado correctamente." });
         }
 
         [HttpGet("listar")]

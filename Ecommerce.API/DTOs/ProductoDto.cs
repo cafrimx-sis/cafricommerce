@@ -8,9 +8,8 @@
         public decimal Price { get; set; }
         public int Stock { get; set; }
         public string? Description { get; set; }
-
-        // 🌟 AGREGAR ESTOS DOS
         public int CategoriaId { get; set; }
+        public int SubCategoriaId { get; set; }
         public int MainMarcaId { get; set; }
     }
 }
