@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Ecommerce.API.Data;
-using Ecommerce.API.DTOs; // Asegúrate de importar tu carpeta DTOs
+using Ecommerce.API.DTOs;
 using Microsoft.AspNetCore.Authorization;
 
 namespace Ecommerce.API.Controllers
@@ -29,12 +29,12 @@ namespace Ecommerce.API.Controllers
             var totalProductos = await _context.Productos.CountAsync();
             var stockBajo = await _context.Productos.CountAsync(p => p.Stock < 5);
 
-            // Calculamos ventas del mes si la tabla Pedidos existe
-            var ventasDelMes = await _context.Pedidos
-                .Where(p => p.Fecha >= inicioMes)
+            // Calculamos ventas del mes utilizando el DbSet correcto de órdenes y propiedades de fecha[cite: 27, 34]
+            var ventasDelMes = await _context.Ordenes
+                .Where(p => p.FechaOrden >= inicioMes)
                 .SumAsync(p => p.Total);
 
-            // Retornamos el DTO
+            // Retornamos el DTO con la información consolidada[cite: 34]
             return Ok(new DashboardResumenDto
             {
                 TotalUsuarios = totalUsuarios,

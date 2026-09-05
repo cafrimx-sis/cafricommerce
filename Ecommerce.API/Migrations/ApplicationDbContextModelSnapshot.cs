@@ -418,6 +418,9 @@ namespace Ecommerce.API.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("UsuarioId"));
 
+                    b.Property<bool>("Activo")
+                        .HasColumnType("bit");
+
                     b.Property<string>("ApellidoMaterno")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -426,9 +429,18 @@ namespace Ecommerce.API.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("CanalVerificacionPreferido")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("CodigoPostal")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CodigoVerificacion")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("CodigoVerificacionExpira")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Colonia")
                         .IsRequired()
@@ -463,6 +475,12 @@ namespace Ecommerce.API.Migrations
                     b.Property<string>("Telefono")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TokenRecuperacion")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("TokenRecuperacionExpira")
+                        .HasColumnType("datetime2");
 
                     b.HasKey("UsuarioId");
 

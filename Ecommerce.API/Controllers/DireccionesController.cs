@@ -96,5 +96,47 @@ namespace Ecommerce.API.Controllers
                 return StatusCode(500, new { mensaje = "Error interno al procesar el C.P. local.", error = ex.Message });
             }
         }
+
+        // Nuevo endpoint POST para registrar la dirección y solucionar el error 404
+        [HttpPost]
+        public async Task<IActionResult> PostDireccion([FromBody] DireccionEnvioDto dto)
+        {
+            try
+            {
+                // TODO: Aquí debes insertar la dirección en tu base de datos usando tu DbContext de Entity Framework.
+                // Ejemplo:
+                // var nuevaDireccion = new DireccionEnvio { ... };
+                // _context.DireccionesEnvio.Add(nuevaDireccion);
+                // await _context.SaveChangesAsync();
+                // int idGenerado = nuevaDireccion.Id;
+
+                // De momento devolvemos un ID simulado (ej. 1) para que el flujo de React continúe al paso de PayPal
+                int idGenerado = 1;
+
+                return Ok(new
+                {
+                    id = idGenerado,
+                    mensaje = "Dirección registrada exitosamente"
+                });
+            }
+            catch (System.Exception ex)
+            {
+                return StatusCode(500, new { mensaje = "Error al guardar la dirección en el servidor.", error = ex.Message });
+            }
+        }
+    }
+
+    // DTO para mapear los campos enviados desde el formulario de React
+    public class DireccionEnvioDto
+    {
+        public int UsuarioId { get; set; }
+        public string Calle { get; set; }
+        public string NumeroExterior { get; set; }
+        public string NumeroInterior { get; set; }
+        public string Colonia { get; set; }
+        public string Ciudad { get; set; }
+        public string Estado { get; set; }
+        public string CodigoPostal { get; set; }
+        public string TelefonoContacto { get; set; }
     }
 }

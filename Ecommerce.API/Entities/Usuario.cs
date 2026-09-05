@@ -15,5 +15,13 @@
         public string Telefono { get; set; } = string.Empty;
         public string CodigoPostal { get; set; } = string.Empty;
         public string Colonia { get; set; } = string.Empty;
+
+        // campos para verificación y recuperación
+        public bool Activo { get; set; } = false; // Se activa tras verificar su código/enlace
+        public string? CanalVerificacionPreferido { get; set; } = "Email"; // "Email", "SMS", "WhatsApp"
+        public string? CodigoVerificacion { get; set; } // Código de 6 dígitos para SMS/WhatsApp
+        public DateTime? CodigoVerificacionExpira { get; set; }
+        public string? TokenRecuperacion { get; set; } // Token para recuperar contraseña por email
+        public DateTime? TokenRecuperacionExpira { get; set; }
     }
 }

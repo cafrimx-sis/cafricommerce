@@ -5,7 +5,6 @@ using System.Text;
 using System.Text.Json;
 using Ecommerce.API.Data;
 using Ecommerce.API.Entities;
-using Ecommerce.API.DTOs;
 
 [Route("api/paypal")]
 [ApiController]
@@ -39,7 +38,12 @@ public class PayPalController : ControllerBase
         request.Content = new FormUrlEncodedContent(new[] { new KeyValuePair<string, string>("grant_type", "client_credentials") });
 
         var response = await _httpClient.SendAsync(request);
-        response.EnsureSuccessStatusCode();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorDetails = await response.Content.ReadAsStringAsync();
+            throw new Exception($"Error al obtener el token de PayPal: {errorDetails}");
+        }
 
         var jsonResponse = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(jsonResponse);
@@ -61,6 +65,11 @@ public class PayPalController : ControllerBase
             if (data.TryGetProperty("totalAmount", out var totalElement))
             {
                 totalAmount = totalElement.GetDecimal();
+            }
+
+            if (totalAmount <= 0)
+            {
+                return BadRequest(new { mensaje = "El monto total de la orden es inválido o no fue provisto." });
             }
 
             // 1. Crear la orden en la API de PayPal
@@ -95,25 +104,63 @@ public class PayPalController : ControllerBase
             using var doc = JsonDocument.Parse(jsonResponse);
             var paypalOrderId = doc.RootElement.GetProperty("id").GetString();
 
-            // 2. Guardar el registro inicial en la BD local con los campos base de la entidad Orden
+            // 2. Extraer usuario y dirección de envío
             int usuarioId = data.TryGetProperty("usuarioId", out var userElem) && userElem.ValueKind == JsonValueKind.Number ? userElem.GetInt32() : 0;
+            int direccionEnvioId = data.TryGetProperty("direccionEnvioId", out var dirElem) && dirElem.ValueKind == JsonValueKind.Number ? dirElem.GetInt32() : 0;
 
+            if (direccionEnvioId <= 0)
+            {
+                return BadRequest(new { mensaje = "El ID de la dirección de envío es requerido para procesar la orden." });
+            }
+
+            // 3. Guardar el registro inicial en la BD local (`Orden`)[cite: 3]
             var nuevaOrden = new Orden
             {
                 UsuarioId = usuarioId,
+                DireccionEnvioId = direccionEnvioId,
                 PayPalOrderId = paypalOrderId,
                 EstadoOrden = "Pendiente",
+                Subtotal = totalAmount,
+                Iva = 0,
+                CostoFlete = 0,
                 Total = totalAmount
             };
 
             _context.Ordenes.Add(nuevaOrden);
             await _context.SaveChangesAsync();
 
+            // 4. Registrar los productos en `OrdenesDetalles` consultando el precio real de la BD[cite: 2, 6]
+            if (data.TryGetProperty("items", out var itemsElement) && itemsElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var itemElem in itemsElement.EnumerateArray())
+                {
+                    int productoId = itemElem.TryGetProperty("productoId", out var pId) ? pId.GetInt32() : (itemElem.TryGetProperty("id", out var idElem) ? idElem.GetInt32() : 0);
+                    int cantidad = itemElem.TryGetProperty("cantidad", out var cant) ? cant.GetInt32() : 1;
+
+                    if (productoId > 0)
+                    {
+                        var productoDb = await _context.Productos.FindAsync(productoId);
+                        decimal precioReal = productoDb?.PrecioPublico ?? 0;
+
+                        var detalle = new OrdenDetalle
+                        {
+                            OrdenId = nuevaOrden.Id,
+                            ProductoId = productoId,
+                            Cantidad = cantidad,
+                            PrecioUnitario = precioReal,
+                            EsBajoPedido = false
+                        };
+                        _context.OrdenesDetalles.Add(detalle);
+                    }
+                }
+                await _context.SaveChangesAsync();
+            }
+
             return Ok(new { id = paypalOrderId });
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { mensaje = "Error interno del servidor", error = ex.Message });
+            return StatusCode(500, new { mensaje = "Error interno del servidor en create-order", error = ex.Message });
         }
     }
 
@@ -152,11 +199,32 @@ public class PayPalController : ControllerBase
 
             if (status == "COMPLETED")
             {
-                // 2. Registrar el éxito y actualizar la orden en la base de datos local
+                // 2. Registrar el éxito, actualizar la orden e INVENTARIO en la base de datos local[cite: 3]
                 var ordenExistente = await _context.Ordenes.FirstOrDefaultAsync(o => o.PayPalOrderId == paypalOrderId);
+
                 if (ordenExistente != null)
                 {
                     ordenExistente.EstadoOrden = "Pagado";
+
+                    // 3. Consultar los detalles asociados a esta orden[cite: 2, 6]
+                    var detallesOrden = await _context.OrdenesDetalles
+                        .Where(d => d.OrdenId == ordenExistente.Id)
+                        .ToListAsync();
+
+                    // 4. Descontar las cantidades del inventario en la tabla `Productos`[cite: 4]
+                    foreach (var detalle in detallesOrden)
+                    {
+                        var producto = await _context.Productos.FindAsync(detalle.ProductoId);
+                        if (producto != null)
+                        {
+                            producto.Stock -= detalle.Cantidad;
+                            if (producto.Stock < 0)
+                            {
+                                producto.Stock = 0;
+                            }
+                        }
+                    }
+
                     await _context.SaveChangesAsync();
                 }
 
@@ -167,7 +235,7 @@ public class PayPalController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { mensaje = "Error interno del servidor", error = ex.Message });
+            return StatusCode(500, new { mensaje = "Error interno del servidor en capture-order", error = ex.Message });
         }
     }
-}
+} 

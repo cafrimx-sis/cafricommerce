@@ -22,9 +22,215 @@ namespace Ecommerce.API.Controllers
             _logger = logger;
         }
 
+        [HttpGet("mis-compras")]
+        public async Task<IActionResult> GetMisCompras()
+        {
+            try
+            {
+                var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int usuarioId))
+                {
+                    return Unauthorized(new { mensaje = "No se pudo identificar al usuario autenticado." });
+                }
+
+                var ordenes = await _context.Ordenes
+                    .Where(o => o.UsuarioId == usuarioId)
+                    .OrderByDescending(o => o.FechaOrden)
+                    .ToListAsync();
+
+                var ordenesIds = ordenes.Select(o => o.Id).ToList();
+                var direccionIds = ordenes.Select(o => o.DireccionEnvioId).Distinct().ToList();
+
+                var detalles = await _context.OrdenesDetalles
+                    .Where(d => ordenesIds.Contains(d.OrdenId))
+                    .ToListAsync();
+
+                var productoIds = detalles.Select(d => d.ProductoId).Distinct().ToList();
+                var productos = await _context.Productos
+                    .Where(p => productoIds.Contains(p.ProductoId))
+                    .ToDictionaryAsync(p => p.ProductoId);
+
+                var direcciones = await _context.DireccionesEnvio
+                    .Where(d => direccionIds.Contains(d.Id))
+                    .ToDictionaryAsync(d => d.Id);
+
+                var usuario = await _context.Usuarios.FindAsync(usuarioId);
+
+                var resultado = ordenes.Select(o =>
+                {
+                    direcciones.TryGetValue(o.DireccionEnvioId, out var dir);
+
+                    string direccionTexto = "N/A";
+                    if (dir != null)
+                    {
+                        var ext = string.IsNullOrEmpty(dir.NumeroExterior) ? "" : $" #{dir.NumeroExterior}";
+                        var intNum = string.IsNullOrEmpty(dir.NumeroInterior) ? "" : $" Int. {dir.NumeroInterior}";
+                        direccionTexto = $"{dir.Calle}{ext}{intNum}, Col. {dir.Colonia}, {dir.Ciudad}, {dir.Estado}, C.P. {dir.CodigoPostal}";
+                    }
+
+                    return new
+                    {
+                        o.Id,
+                        o.UsuarioId,
+                        o.DireccionEnvioId,
+                        o.Subtotal,
+                        o.Iva,
+                        o.CostoFlete,
+                        o.Total,
+                        o.EstadoOrden,
+                        o.MetodoPago,
+                        o.FechaOrden,
+                        o.PayPalOrderId,
+                        usuario = usuario == null ? null : new
+                        {
+                            Nombre = usuario.Nombre ?? "",
+                            Email = usuario.Email ?? "",
+                            Telefono = usuario.Telefono ?? "",
+                            Direccion = direccionTexto
+                        },
+                        nombreCliente = usuario?.Nombre ?? "N/A",
+                        correoCliente = usuario?.Email ?? "N/A",
+                        telefonoCliente = usuario?.Telefono ?? "N/A",
+                        direccionEnvio = direccionTexto,
+                        OrdenesDetalles = detalles.Where(d => d.OrdenId == o.Id).Select(d =>
+                        {
+                            productos.TryGetValue(d.ProductoId, out var prod);
+                            return new
+                            {
+                                d.Id,
+                                d.OrdenId,
+                                d.ProductoId,
+                                d.Cantidad,
+                                d.PrecioUnitario,
+                                d.EsBajoPedido,
+                                producto = prod == null ? null : new
+                                {
+                                    nombre = prod.Nombre,
+                                    sku = prod.SKU,
+                                    descripcion = prod.Descripcion,
+                                    categoria = prod.Categoria,
+                                    imagen = string.Empty
+                                }
+                            };
+                        }).ToList()
+                    };
+                });
+
+                return Ok(resultado);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error al obtener las compras del usuario: {ex.Message}");
+                return StatusCode(500, new { mensaje = "Error interno al obtener el historial de compras." });
+            }
+        }
+
+        [HttpGet("admin/todas")]
+        [Authorize]
+        public async Task<IActionResult> GetTodasLasOrdenesAdmin()
+        {
+            try
+            {
+                var ordenes = await _context.Ordenes
+                    .OrderByDescending(o => o.FechaOrden)
+                    .ToListAsync();
+
+                var ordenesIds = ordenes.Select(o => o.Id).ToList();
+                var usuarioIds = ordenes.Select(o => o.UsuarioId).Distinct().ToList();
+                var direccionIds = ordenes.Select(o => o.DireccionEnvioId).Distinct().ToList();
+
+                var detalles = await _context.OrdenesDetalles
+                    .Where(d => ordenesIds.Contains(d.OrdenId))
+                    .ToListAsync();
+
+                var productoIds = detalles.Select(d => d.ProductoId).Distinct().ToList();
+                var productos = await _context.Productos
+                    .Where(p => productoIds.Contains(p.ProductoId))
+                    .ToDictionaryAsync(p => p.ProductoId);
+
+                var usuarios = await _context.Usuarios
+                    .Where(u => usuarioIds.Contains(u.UsuarioId))
+                    .ToDictionaryAsync(u => u.UsuarioId);
+
+                var direcciones = await _context.DireccionesEnvio
+                    .Where(d => direccionIds.Contains(d.Id))
+                    .ToDictionaryAsync(d => d.Id);
+
+                var resultado = ordenes.Select(o =>
+                {
+                    usuarios.TryGetValue(o.UsuarioId, out var usuario);
+                    direcciones.TryGetValue(o.DireccionEnvioId, out var dir);
+
+                    string direccionTexto = "N/A";
+                    if (dir != null)
+                    {
+                        var ext = string.IsNullOrEmpty(dir.NumeroExterior) ? "" : $" #{dir.NumeroExterior}";
+                        var intNum = string.IsNullOrEmpty(dir.NumeroInterior) ? "" : $" Int. {dir.NumeroInterior}";
+                        direccionTexto = $"{dir.Calle}{ext}{intNum}, Col. {dir.Colonia}, {dir.Ciudad}, {dir.Estado}, C.P. {dir.CodigoPostal}";
+                    }
+
+                    return new
+                    {
+                        o.Id,
+                        o.UsuarioId,
+                        o.DireccionEnvioId,
+                        o.Subtotal,
+                        o.Iva,
+                        o.CostoFlete,
+                        o.Total,
+                        o.EstadoOrden,
+                        o.MetodoPago,
+                        o.FechaOrden,
+                        o.PayPalOrderId,
+                        o.ReferenciaPago,
+                        usuario = usuario == null ? null : new
+                        {
+                            Nombre = usuario.Nombre ?? "",
+                            Email = usuario.Email ?? "",
+                            Telefono = usuario.Telefono ?? "",
+                            Direccion = direccionTexto
+                        },
+                        nombreCliente = usuario?.Nombre ?? "N/A",
+                        correoCliente = usuario?.Email ?? "N/A",
+                        telefonoCliente = usuario?.Telefono ?? "N/A",
+                        direccionEnvio = direccionTexto,
+                        OrdenesDetalles = detalles.Where(d => d.OrdenId == o.Id).Select(d =>
+                        {
+                            productos.TryGetValue(d.ProductoId, out var prod);
+                            return new
+                            {
+                                d.Id,
+                                d.OrdenId,
+                                d.ProductoId,
+                                d.Cantidad,
+                                d.PrecioUnitario,
+                                d.EsBajoPedido,
+                                producto = prod == null ? null : new
+                                {
+                                    nombre = prod.Nombre,
+                                    sku = prod.SKU,
+                                    descripcion = prod.Descripcion,
+                                    categoria = prod.Categoria,
+                                    imagen = string.Empty
+                                }
+                            };
+                        }).ToList()
+                    };
+                });
+
+                return Ok(resultado);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error al obtener todas las ordenes para administrador: {ex.Message}");
+                return StatusCode(500, new { mensaje = "Error interno al obtener el listado de órdenes." });
+            }
+        }
+
         [HttpPost("paypal")]
         public async Task<IActionResult> CreateOrderPayPal([FromBody] CheckoutDto solicitud)
         {
+            using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
                 var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -58,6 +264,7 @@ namespace Ecommerce.API.Controllers
                 var direccion = await _context.DireccionesEnvio.FindAsync(direccionEnvioId);
                 if (direccion == null)
                 {
+                    await transaction.RollbackAsync();
                     return BadRequest(new { mensaje = "Dirección inválida o incompleta." });
                 }
 
@@ -70,7 +277,11 @@ namespace Ecommerce.API.Controllers
                 foreach (var item in solicitud.Items)
                 {
                     var producto = await _context.Productos.FindAsync(item.ProductoId);
-                    if (producto == null) return BadRequest(new { mensaje = $"El producto con ID {item.ProductoId} no existe." });
+                    if (producto == null)
+                    {
+                        await transaction.RollbackAsync();
+                        return BadRequest(new { mensaje = $"El producto con ID {item.ProductoId} no existe." });
+                    }
 
                     bool esBajoPedido = producto.Stock <= 0;
                     producto.Stock -= item.Cantidad;
@@ -111,6 +322,8 @@ namespace Ecommerce.API.Controllers
                 }
                 await _context.SaveChangesAsync();
 
+                await transaction.CommitAsync();
+
                 return Ok(new
                 {
                     mensaje = "Orden creada para PayPal exitosamente",
@@ -120,6 +333,7 @@ namespace Ecommerce.API.Controllers
             }
             catch (Exception ex)
             {
+                await transaction.RollbackAsync();
                 return StatusCode(500, new { mensaje = "Error interno al procesar orden PayPal", error = ex.Message });
             }
         }
