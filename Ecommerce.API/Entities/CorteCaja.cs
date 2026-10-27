@@ -9,7 +9,7 @@ namespace Ecommerce.API.Entities
     {
         [Key]
         public int Id { get; set; }
-        public DateTime FechaCorte { get; set; } = DateTime.Now;
+        public DateTime FechaCorte { get; set; } = DateTime.UtcNow;
 
         [Column(TypeName = "decimal(18,2)")]
         public decimal FondoInicial { get; set; }

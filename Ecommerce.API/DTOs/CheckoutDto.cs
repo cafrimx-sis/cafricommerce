@@ -32,6 +32,10 @@ namespace Ecommerce.API.DTOs
         [StringLength(20, ErrorMessage = "El teléfono no puede superar los 20 caracteres.")]
         public string? TelefonoContacto { get; set; }
 
+        // Identificador de la orden de PayPal enviado desde el frontend
+        [StringLength(100, ErrorMessage = "El PayPal Order ID no es válido.")]
+        public string? PayPalOrderId { get; set; }
+
         [Required(ErrorMessage = "El carrito de compras no puede estar vacío.")]
         public List<CartItemDto> Items { get; set; } = new();
     }

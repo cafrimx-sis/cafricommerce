@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 
@@ -11,11 +11,7 @@ export default function CorteDeCaja() {
   const [procesando, setProcesando] = useState(false);
   const [corteSeleccionado, setCorteSeleccionado] = useState(null);
 
-  useEffect(() => {
-    cargarDatos();
-  }, []);
-
-  const cargarDatos = async () => {
+  const cargarDatos = useCallback(async () => {
     try {
       const resVentas = await api.get('/ventas?sinCorte=true');
       const listaVentas = Array.isArray(resVentas.data) ? resVentas.data : (resVentas.data?.$values || []);
@@ -27,7 +23,30 @@ export default function CorteDeCaja() {
       console.error(err);
       toast.error('Error al sincronizar datos de caja');
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      api.get('/ventas?sinCorte=true'),
+      api.get('/cortes')
+    ])
+      .then(([resVentas, resCortes]) => {
+        if (!active) return;
+        const listaVentas = Array.isArray(resVentas.data) ? resVentas.data : (resVentas.data?.$values || []);
+        setVentasPendientes(listaVentas);
+        setHistorialCortes(Array.isArray(resCortes.data) ? resCortes.data : (resCortes.data?.$values || []));
+      })
+      .catch((err) => {
+        if (!active) return;
+        console.error(err);
+        toast.error('Error al sincronizar datos de caja');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const calcularTotalesPendientes = () => {
     const efectivo = ventasPendientes.filter(v => (v.metodoPago || v.MetodoPago) === 'Efectivo').reduce((acc, v) => acc + (v.total || v.Total || 0), 0);

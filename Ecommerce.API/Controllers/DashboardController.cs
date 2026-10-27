@@ -22,16 +22,17 @@ namespace Ecommerce.API.Controllers
         public async Task<ActionResult<DashboardResumenDto>> GetResumen()
         {
             // Fecha de inicio del mes actual para calcular ventas
-            var inicioMes = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+            var ahoraUtc = DateTime.UtcNow;
+            var inicioMes = new DateTime(ahoraUtc.Year, ahoraUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc);
 
             // Obtenemos los valores de forma eficiente
             var totalUsuarios = await _context.Usuarios.CountAsync();
             var totalProductos = await _context.Productos.CountAsync();
             var stockBajo = await _context.Productos.CountAsync(p => p.Stock < 5);
 
-            // Calculamos ventas del mes utilizando el DbSet correcto de órdenes y propiedades de fecha[cite: 27, 34]
+            var estadosPagados = new[] { "Pagado", "En preparación", "Enviado", "Entregado" };
             var ventasDelMes = await _context.Ordenes
-                .Where(p => p.FechaOrden >= inicioMes)
+                .Where(p => p.FechaOrden >= inicioMes && estadosPagados.Contains(p.EstadoOrden))
                 .SumAsync(p => p.Total);
 
             // Retornamos el DTO con la información consolidada[cite: 34]

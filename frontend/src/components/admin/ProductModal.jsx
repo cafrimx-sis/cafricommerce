@@ -1,31 +1,23 @@
-import React, { useEffect, useState } from 'react';
-
 export default function ProductModal({ 
   isOpen, isEditing, onClose, onSubmit,
   sku, setSku, nombre, setNombre, 
   descripcion, setDescripcion,
   precioPublico, setPrecioPublico, stock, setStock,
+  descuentoOferta, setDescuentoOferta, ofertaInicio, setOfertaInicio,
+  ofertaFin, setOfertaFin,
+  esDestacado, setEsDestacado, destacadoInicio, setDestacadoInicio,
+  destacadoFin, setDestacadoFin,
   categoriaId, setCategoriaId, categorias = [], 
   subCategoriaId, setSubCategoriaId, subCategorias = [], 
   mainMarcaId, setMainMarcaId, marcas = [], 
   setFotoArchivo 
 }) {
-  const [subCategoriasFiltradas, setSubCategoriasFiltradas] = useState([]);
-
-  useEffect(() => {
-    if (!categoriaId) {
-      setSubCategoriasFiltradas([]);
-      setSubCategoriaId("");
-      return;
-    }
-
-    const filtradas = subCategorias.filter((sub) => {
+  const subCategoriasFiltradas = categoriaId
+    ? subCategorias.filter((sub) => {
       const parentId = sub.categoriaId ?? sub.CategoriaId ?? sub.categoryId ?? sub.CategoryId;
       return String(parentId) === String(categoriaId);
-    });
-
-    setSubCategoriasFiltradas(filtradas);
-  }, [categoriaId, subCategorias, setSubCategoriaId]);
+    })
+    : [];
 
   if (!isOpen) return null;
 
@@ -106,13 +98,17 @@ export default function ProductModal({
           </div>
 
           <div style={{ marginBottom: '15px' }}>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px', color: '#4a5568' }}>Descripción Técnica</label>
+            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px', color: '#4a5568' }}>Descripción y especificaciones</label>
             <textarea 
               value={descripcion || ''} 
               onChange={(e) => setDescripcion(e.target.value)} 
-              style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e0', borderRadius: '5px', boxSizing: 'border-box', minHeight: '80px', fontFamily: 'inherit', fontSize: '14px' }} 
-              placeholder="Ej. Equipo inverter de alta eficiencia energética..." 
+              rows={6}
+              style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e0', borderRadius: '5px', boxSizing: 'border-box', minHeight: '140px', fontFamily: 'inherit', fontSize: '14px', resize: 'vertical' }}
+              placeholder={'Capacidad: 12,000 BTU\nTipo: Inverter\nVoltaje: 220 V\nRefrigerante: R-32\nEficiencia: ...\nIncluye: ...\nGarantía: ...'}
             />
+            <small style={{ display: 'block', marginTop: '6px', color: '#64748b', lineHeight: 1.5 }}>
+              Esta información aparecerá en la tienda y en “Más información” del chatbot. Agrega solo especificaciones confirmadas para este modelo.
+            </small>
           </div>
 
           <div style={{ marginBottom: '15px' }}>
@@ -188,6 +184,43 @@ export default function ProductModal({
               <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px', color: '#4a5568' }}>Unidades Stock</label>
               <input type="number" required value={stock} onChange={(e) => setStock(e.target.value)} style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e0', borderRadius: '5px', boxSizing: 'border-box', fontSize: '14px' }} placeholder="0" />
             </div>
+          </div>
+
+          <div style={{ marginBottom: '15px', padding: '14px', border: '1px solid #bee3f8', borderRadius: '8px', background: '#f0f9ff' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '14px', color: '#2c5282' }}>Oferta para tienda en línea</label>
+            <div className="modal-row-2col">
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', color: '#4a5568' }}>Descuento (%)</label>
+                <input type="number" min="0" max="99.99" step="0.01" value={descuentoOferta} onChange={(e) => setDescuentoOferta(e.target.value)} style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e0', borderRadius: '5px', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', color: '#4a5568' }}>Inicia</label>
+                <input type="datetime-local" required={Number(descuentoOferta) > 0} disabled={Number(descuentoOferta) <= 0} value={ofertaInicio} onChange={(e) => setOfertaInicio(e.target.value)} style={{ width: '100%', padding: '9px', border: '1px solid #cbd5e0', borderRadius: '5px', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', color: '#4a5568' }}>Termina</label>
+                <input type="datetime-local" required={Number(descuentoOferta) > 0} disabled={Number(descuentoOferta) <= 0} value={ofertaFin} onChange={(e) => setOfertaFin(e.target.value)} style={{ width: '100%', padding: '9px', border: '1px solid #cbd5e0', borderRadius: '5px', boxSizing: 'border-box' }} />
+              </div>
+            </div>
+            <small style={{ display: 'block', marginTop: '8px', color: '#4a5568' }}>Deja el descuento en 0 para quitar la oferta. Las fechas se capturan en hora local.</small>
+          </div>
+
+          <div style={{ marginBottom: '15px', padding: '14px', border: '1px solid #c4b5fd', borderRadius: '8px', background: '#f5f3ff' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '9px', fontWeight: 'bold', fontSize: '14px', color: '#5b21b6', cursor: 'pointer' }}>
+              <input type="checkbox" checked={esDestacado} onChange={(e) => setEsDestacado(e.target.checked)} />
+              Promocionar como producto nuevo o destacado
+            </label>
+            <div className="modal-row-2col" style={{ marginTop: '12px' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', color: '#4a5568' }}>Inicia</label>
+                <input type="datetime-local" required={esDestacado} disabled={!esDestacado} value={destacadoInicio} onChange={(e) => setDestacadoInicio(e.target.value)} style={{ width: '100%', padding: '9px', border: '1px solid #cbd5e0', borderRadius: '5px', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', color: '#4a5568' }}>Termina</label>
+                <input type="datetime-local" required={esDestacado} disabled={!esDestacado} value={destacadoFin} onChange={(e) => setDestacadoFin(e.target.value)} style={{ width: '100%', padding: '9px', border: '1px solid #cbd5e0', borderRadius: '5px', boxSizing: 'border-box' }} />
+              </div>
+            </div>
+            <small style={{ display: 'block', marginTop: '8px', color: '#4a5568' }}>Se muestra en el carrusel sin requerir descuento. Las fechas se capturan en hora local.</small>
           </div>
 
           <div style={{ marginBottom: '25px' }}>

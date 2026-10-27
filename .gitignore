@@ -3,7 +3,11 @@
 *.suo
 Ecommerce.API/bin/
 Ecommerce.API/obj/
+Ecommerce.API.Tests/bin/
+Ecommerce.API.Tests/obj/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
 frontend/.env
+frontend/.env.local
+frontend/.env.*.local

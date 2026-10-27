@@ -1,15 +1,11 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import api from "../../lib/api";
 
 export default function BrandManager() {
   const [marcas, setMarcas] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    cargarMarcas();
-  }, []);
-
-  const cargarMarcas = async () => {
+  const cargarMarcas = useCallback(async () => {
     try {
       const res = await api.get("/marcas");
       setMarcas(res.data || []);
@@ -18,7 +14,25 @@ export default function BrandManager() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    api.get("/marcas")
+      .then((res) => {
+        if (active) setMarcas(res.data || []);
+      })
+      .catch((err) => {
+        if (active) console.error("Error al cargar marcas", err);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleCreateMarca = async () => {
     const nombre = prompt("Nombre de la nueva marca:");
@@ -51,7 +65,7 @@ export default function BrandManager() {
       });
       cargarMarcas();
       alert("Marca actualizada con éxito");
-    } catch (err) {
+    } catch {
       try {
         await api.post(`/marcas/update/${marcaId}`, { 
           Nombre: nuevoNombre.trim(),
@@ -59,7 +73,7 @@ export default function BrandManager() {
         });
         cargarMarcas();
         alert("Marca actualizada con éxito");
-      } catch (errPost) {
+      } catch {
         alert("Error al actualizar la marca");
       }
     }
@@ -71,7 +85,7 @@ export default function BrandManager() {
       await api.delete(`/marcas/${id}`);
       cargarMarcas();
       alert("Marca eliminada con éxito");
-    } catch (err) {
+    } catch {
       try {
         await api.post(`/marcas/delete/${id}`);
         cargarMarcas();

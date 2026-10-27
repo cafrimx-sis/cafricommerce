@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 
@@ -40,7 +40,7 @@ export default function ShippingAddressView({ formData, handleChange, setFormDat
   };
 
   return (
-    <div style={styles.container}>
+    <div className="checkout-address" style={styles.container}>
       <div style={styles.headerBox}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
           <div>
@@ -194,10 +194,10 @@ const styles = {
     maxWidth: '750px', 
     margin: '30px auto', 
     background: '#ffffff', 
-    padding: '45px', 
-    borderRadius: '16px', 
-    boxShadow: '0 10px 30px -5px rgba(0, 0, 0, 0.08)', 
-    border: '1px solid #e2e8f0' 
+    padding: 'clamp(20px, 5vw, 45px)',
+    borderRadius: '20px',
+    boxShadow: 'var(--shadow-soft)',
+    border: '1px solid var(--line)'
   },
   headerBox: { 
     marginBottom: '30px', 
@@ -205,8 +205,8 @@ const styles = {
     paddingBottom: '18px' 
   },
   stepBadge: {
-    backgroundColor: '#ebf8ff',
-    color: '#004481',
+    backgroundColor: '#d8f7f1',
+    color: '#123d62',
     fontSize: '0.8rem',
     fontWeight: '700',
     padding: '5px 12px',
@@ -217,7 +217,7 @@ const styles = {
     marginBottom: '8px'
   },
   title: { 
-    color: '#004481', 
+    color: '#0c2946',
     margin: 0, 
     fontSize: '1.7rem',
     fontWeight: '700'
@@ -285,7 +285,7 @@ const styles = {
   },
   primaryButton: { 
     padding: '16px 20px', 
-    backgroundColor: '#004481', 
+    background: 'linear-gradient(135deg, #123d62, #17608a)',
     color: 'white', 
     border: 'none', 
     borderRadius: '10px', 
@@ -295,12 +295,12 @@ const styles = {
     textAlign: 'center', 
     width: '100%', 
     marginTop: '15px',
-    boxShadow: '0 4px 12px rgba(0, 68, 129, 0.2)'
+    boxShadow: '0 12px 24px rgba(18, 61, 98, 0.22)'
   },
   linkButton: { 
     background: 'none', 
     border: 'none', 
-    color: '#004481', 
+    color: '#17608a',
     fontWeight: '600', 
     cursor: 'pointer', 
     fontSize: '0.95rem',

@@ -1,26 +1,34 @@
 ﻿using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Ecommerce.API.Data;
+using Ecommerce.API.Entities;
 
 namespace Ecommerce.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize] // 🔒 Requiere autenticación por defecto para todo el controlador
     public class DireccionesController : ControllerBase
     {
         private readonly IWebHostEnvironment _env;
+        private readonly ApplicationDbContext _context;
 
-        public DireccionesController(IWebHostEnvironment env)
+        public DireccionesController(IWebHostEnvironment env, ApplicationDbContext context)
         {
             _env = env;
+            _context = context;
         }
 
         [HttpGet("buscar-por-cp/{cp}")]
+        [AllowAnonymous] // 🔓 Permitir consulta pública del catálogo de C.P. (cp.json)
         public async Task<IActionResult> GetColonias(string cp)
         {
             try
@@ -55,7 +63,7 @@ namespace Ecommerce.API.Controllers
                             {
                                 string codigoStr = prop.ValueKind == JsonValueKind.Number
                                     ? prop.GetInt32().ToString()
-                                    : prop.GetString();
+                                    : prop.GetString() ?? string.Empty;
 
                                 if (codigoStr == cp)
                                 {
@@ -97,25 +105,37 @@ namespace Ecommerce.API.Controllers
             }
         }
 
-        // Nuevo endpoint POST para registrar la dirección y solucionar el error 404
         [HttpPost]
         public async Task<IActionResult> PostDireccion([FromBody] DireccionEnvioDto dto)
         {
             try
             {
-                // TODO: Aquí debes insertar la dirección en tu base de datos usando tu DbContext de Entity Framework.
-                // Ejemplo:
-                // var nuevaDireccion = new DireccionEnvio { ... };
-                // _context.DireccionesEnvio.Add(nuevaDireccion);
-                // await _context.SaveChangesAsync();
-                // int idGenerado = nuevaDireccion.Id;
+                // 🔒 Obtenemos el ID del usuario de forma segura mediante el token JWT
+                var userIdClaim = User.FindFirstValue("sub");
+                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int usuarioId))
+                {
+                    return Unauthorized(new { mensaje = "No se pudo identificar al usuario autenticado." });
+                }
 
-                // De momento devolvemos un ID simulado (ej. 1) para que el flujo de React continúe al paso de PayPal
-                int idGenerado = 1;
+                var nuevaDireccion = new DireccionEnvio
+                {
+                    UsuarioId = usuarioId, // Asignación segura vinculada al usuario autenticado
+                    Calle = dto.Calle ?? string.Empty,
+                    NumeroExterior = dto.NumeroExterior ?? string.Empty,
+                    NumeroInterior = dto.NumeroInterior,
+                    Colonia = dto.Colonia ?? string.Empty,
+                    Ciudad = dto.Ciudad ?? string.Empty,
+                    Estado = dto.Estado ?? string.Empty,
+                    CodigoPostal = dto.CodigoPostal ?? string.Empty,
+                    TelefonoContacto = dto.TelefonoContacto ?? string.Empty
+                };
+
+                _context.DireccionesEnvio.Add(nuevaDireccion);
+                await _context.SaveChangesAsync();
 
                 return Ok(new
                 {
-                    id = idGenerado,
+                    id = nuevaDireccion.Id,
                     mensaje = "Dirección registrada exitosamente"
                 });
             }
@@ -126,17 +146,16 @@ namespace Ecommerce.API.Controllers
         }
     }
 
-    // DTO para mapear los campos enviados desde el formulario de React
+    // DTO actualizado (ya no requiere UsuarioId expuesto en el cliente)
     public class DireccionEnvioDto
     {
-        public int UsuarioId { get; set; }
-        public string Calle { get; set; }
-        public string NumeroExterior { get; set; }
-        public string NumeroInterior { get; set; }
-        public string Colonia { get; set; }
-        public string Ciudad { get; set; }
-        public string Estado { get; set; }
-        public string CodigoPostal { get; set; }
-        public string TelefonoContacto { get; set; }
+        public string Calle { get; set; } = string.Empty;
+        public string NumeroExterior { get; set; } = string.Empty;
+        public string? NumeroInterior { get; set; }
+        public string Colonia { get; set; } = string.Empty;
+        public string Ciudad { get; set; } = string.Empty;
+        public string Estado { get; set; } = string.Empty;
+        public string CodigoPostal { get; set; } = string.Empty;
+        public string TelefonoContacto { get; set; } = string.Empty;
     }
 }

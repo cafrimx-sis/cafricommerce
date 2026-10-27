@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from "../../lib/api"; 
 
 export default function UserTable() {
@@ -10,11 +10,7 @@ export default function UserTable() {
   const [paginaActual, setPaginaActual] = useState(1);
   const usuariosPorPagina = 5;
 
-  useEffect(() => {
-    cargarUsuarios();
-  }, []);
-
-  const cargarUsuarios = async () => {
+  const cargarUsuarios = useCallback(async () => {
     try {
       const response = await api.get('/auth/listar');
       setUsuarios(response.data || []);
@@ -23,7 +19,25 @@ export default function UserTable() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    api.get('/auth/listar')
+      .then((response) => {
+        if (active) setUsuarios(response.data || []);
+      })
+      .catch((err) => {
+        if (active) setError(err.response?.data?.message || "No se pudo conectar con el servidor.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleCambiarRol = async (id, rolActual) => {
     const nuevoRol = rolActual === 'Administrador' ? 'Cliente' : 'Administrador';
@@ -31,7 +45,7 @@ export default function UserTable() {
       await api.put(`/auth/cambiar-rol/${id}`, { rol: nuevoRol });
       alert("Rol actualizado con éxito");
       cargarUsuarios(); 
-    } catch (err) {
+    } catch {
       alert("Error al actualizar el rol");
     }
   };
@@ -42,7 +56,7 @@ export default function UserTable() {
         await api.delete(`/auth/eliminar/${id}`);
         alert("Usuario eliminado");
         cargarUsuarios();
-      } catch (err) {
+      } catch {
         alert("Error al eliminar el usuario");
       }
     }

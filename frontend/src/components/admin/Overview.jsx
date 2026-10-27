@@ -1,5 +1,3 @@
-import React from 'react';
-
 export default function Overview({ stats }) {
   if (!stats) return <p style={{ padding: '20px', color: '#718096' }}>Cargando estadísticas...</p>;
 

@@ -1,21 +1,25 @@
 import axios from 'axios';
+import { apiBaseUrl } from './deploymentConfig';
 
 const api = axios.create({
-  // CAMBIA ESTA LÍNEA: Ahora sí leerá tu puerto 5104 del .env
-  baseURL: import.meta.env.VITE_API_URL, 
+  baseURL: apiBaseUrl,
   headers: {
     'Content-Type': 'application/json'
   }
 });
 
-// Interceptor para asegurar que el token se envíe siempre
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    // Quitamos comillas si existen al recuperar
-    config.headers.Authorization = `Bearer ${token.replace(/['"]+/g, '')}`;
+// 🔑 Este interceptor toma el token guardado en el navegador y lo inyecta en cada petición
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
   }
-  return config;
-});
+);
 
 export default api;

@@ -22,34 +22,53 @@ namespace Ecommerce.API.Data
         public DbSet<Venta> Ventas { get; set; }
         public DbSet<DetalleVenta> DetalleVentas { get; set; }
         public DbSet<CorteCaja> CortesCaja { get; set; }
+        public DbSet<SolicitudFactura> SolicitudesFacturacion { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
-            // Categorías
+            // Relación de Categorías (Autoreferencia jerárquica)
             modelBuilder.Entity<Categoria>()
                 .HasOne(c => c.CategoriaPadre)
                 .WithMany(c => c.Subcategorias)
                 .HasForeignKey(c => c.CategoriaPadreId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Producto - Configuración de SubCategoría (Evita ciclos de borrado)
+            // Producto - Configuración de SubCategoría (Evita ciclos de borrado en cascada)
             modelBuilder.Entity<Producto>()
                 .HasOne(p => p.SubCategoria)
                 .WithMany()
                 .HasForeignKey(p => p.SubCategoriaId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // Índice único para SKU de producto
             modelBuilder.Entity<Producto>()
                 .HasIndex(p => p.SKU)
                 .IsUnique();
 
+            // Precisión monetaria para precios de productos
             modelBuilder.Entity<Producto>()
                 .Property(p => p.PrecioPublico)
                 .HasPrecision(18, 2);
+            modelBuilder.Entity<Producto>()
+                .Property(p => p.DescuentoPorcentaje)
+                .HasPrecision(5, 2);
 
-            // Configuración de Pedidos
+            // Mapeo explícito para la columna con variante ortográfica en SQL
+            modelBuilder.Entity<Producto>()
+                .Property(p => p.MainMarcaId)
+                .HasColumnName("MainMarcadId");
+
+            modelBuilder.Entity<Usuario>()
+                .Property(user => user.FechaNacimiento)
+                .HasColumnType("date");
+
+            // Mapeo explícito para las tablas físicas de Ventas
+            modelBuilder.Entity<Venta>().ToTable("VentasFisicas");
+            modelBuilder.Entity<DetalleVenta>().ToTable("VentasFisicasDetalles");
+
+            // Precisión monetaria para Pedidos y Detalles
             modelBuilder.Entity<Pedido>()
                 .Property(p => p.Total)
                 .HasPrecision(18, 2);

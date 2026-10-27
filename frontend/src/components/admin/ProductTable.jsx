@@ -1,17 +1,23 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import api from "../../lib/api"; 
 
-export default function ProductTable({ products = [], loading, error, onEdit, onDelete, onAddNew }) {
+const MAX_BULK_OFFER_PRODUCTS = 500;
+
+export default function ProductTable({ products = [], loading, error, onEdit, onDelete, onAddNew, onApplyOffer }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [selectedSubCategory, setSelectedSubCategory] = useState('ALL');
   const [selectedBrand, setSelectedBrand] = useState('ALL');
   const [stockFilter, setStockFilter] = useState('ALL');
+  const [selectedProductIds, setSelectedProductIds] = useState([]);
+  const [offerDiscount, setOfferDiscount] = useState('');
+  const [offerStart, setOfferStart] = useState('');
+  const [offerEnd, setOfferEnd] = useState('');
 
   if (loading) return <p style={{ color: '#3182ce', fontWeight: 'bold', padding: '20px' }}>Cargando equipos...</p>;
   if (error) return <div style={{ backgroundColor: '#fed7d7', color: '#9b2c2c', padding: '15px', borderRadius: '6px', marginBottom: '20px' }}>⚠️ Error: {error}</div>;
 
-  const BASE_URL = api.defaults?.baseURL ? api.defaults.baseURL.replace(/\/api$/, '') : 'http://localhost:5104';
+  const BASE_URL = api.defaults.baseURL.replace(/\/api\/?$/, '');
 
   const categories = [...new Set(products.map(p => p.category || p.Categoria?.nombre || 'General'))];
   const subCategories = [...new Set(products.map(p => p.subCategory || p.SubCategoria?.nombre || 'N/A'))];
@@ -38,6 +44,56 @@ export default function ProductTable({ products = [], loading, error, onEdit, on
 
     return matchesSearch && matchesCategory && matchesSubCategory && matchesBrand && matchesStock;
   });
+  const filteredIds = filteredProducts.map(item => item.productoId || item.id || item.ProductoId);
+  const allFilteredSelected = filteredIds.length > 0 && filteredIds.every(id => selectedProductIds.includes(id));
+
+  const toggleProductSelection = (id) => {
+    if (selectedProductIds.includes(id)) {
+      setSelectedProductIds(current => current.filter(selectedId => selectedId !== id));
+      return;
+    }
+    if (selectedProductIds.length >= MAX_BULK_OFFER_PRODUCTS) {
+      window.alert(`Selecciona como máximo ${MAX_BULK_OFFER_PRODUCTS} productos por oferta.`);
+      return;
+    }
+    setSelectedProductIds(current => [...current, id]);
+  };
+
+  const toggleFilteredSelection = () => {
+    const nextSelection = allFilteredSelected
+      ? selectedProductIds.filter(id => !filteredIds.includes(id))
+      : [...new Set([...selectedProductIds, ...filteredIds])];
+    if (nextSelection.length > MAX_BULK_OFFER_PRODUCTS) {
+      window.alert(`Selecciona como máximo ${MAX_BULK_OFFER_PRODUCTS} productos por oferta. Usa los filtros para dividir la selección.`);
+      return;
+    }
+    setSelectedProductIds(nextSelection);
+  };
+
+  const submitOffer = async (event) => {
+    event.preventDefault();
+    const discount = Number(offerDiscount);
+    if (discount > 0 && (!offerStart || !offerEnd || new Date(offerEnd) <= new Date(offerStart))) {
+      window.alert('Indica un periodo de oferta válido.');
+      return;
+    }
+    try {
+      const updated = await onApplyOffer(
+        selectedProductIds,
+        discount,
+        discount > 0 ? new Date(offerStart).toISOString() : null,
+        discount > 0 ? new Date(offerEnd).toISOString() : null
+      );
+      if (updated) {
+        setSelectedProductIds([]);
+        setOfferDiscount('');
+        setOfferStart('');
+        setOfferEnd('');
+      }
+    } catch (error) {
+      window.alert(error.message || 'No se pudo actualizar la oferta.');
+    }
+  };
 
   return (
     <div style={{ padding: '16px', maxWidth: '1400px', margin: '0 auto', boxSizing: 'border-box' }}>
@@ -155,6 +211,29 @@ export default function ProductTable({ products = [], loading, error, onEdit, on
         </button>
       </div>
 
+      {selectedProductIds.length > 0 && (
+        <form onSubmit={submitOffer} style={{ display: 'flex', alignItems: 'end', gap: '12px', flexWrap: 'wrap', marginBottom: '16px', padding: '16px', background: '#f0f9ff', border: '1px solid #bee3f8', borderRadius: '8px' }}>
+          <strong style={{ color: '#2c5282', alignSelf: 'center' }}>{selectedProductIds.length} producto(s) seleccionado(s)</strong>
+          <label style={{ display: 'grid', gap: '5px', color: '#4a5568', fontSize: '13px' }}>
+            Descuento (%)
+            <input type="number" min="0" max="99.99" step="0.01" required value={offerDiscount} onChange={(e) => setOfferDiscount(e.target.value)} style={{ padding: '9px', border: '1px solid #cbd5e0', borderRadius: '5px' }} />
+          </label>
+          <label style={{ display: 'grid', gap: '5px', color: '#4a5568', fontSize: '13px' }}>
+            Inicia
+            <input type="datetime-local" required={Number(offerDiscount) > 0} disabled={Number(offerDiscount) <= 0} value={offerStart} onChange={(e) => setOfferStart(e.target.value)} style={{ padding: '8px', border: '1px solid #cbd5e0', borderRadius: '5px' }} />
+          </label>
+          <label style={{ display: 'grid', gap: '5px', color: '#4a5568', fontSize: '13px' }}>
+            Termina
+            <input type="datetime-local" required={Number(offerDiscount) > 0} disabled={Number(offerDiscount) <= 0} value={offerEnd} onChange={(e) => setOfferEnd(e.target.value)} style={{ padding: '8px', border: '1px solid #cbd5e0', borderRadius: '5px' }} />
+          </label>
+          <button type="submit" style={{ padding: '10px 16px', border: 0, borderRadius: '6px', color: 'white', background: '#167d72', fontWeight: 'bold', cursor: 'pointer' }}>
+            {Number(offerDiscount) > 0 ? 'Aplicar oferta' : 'Quitar oferta'}
+          </button>
+          <button type="button" onClick={() => setSelectedProductIds([])} style={{ padding: '10px 14px', border: '1px solid #cbd5e0', borderRadius: '6px', background: 'white', cursor: 'pointer' }}>Cancelar</button>
+          <small style={{ width: '100%', color: '#64748b' }}>Puedes seleccionar hasta {MAX_BULK_OFFER_PRODUCTS} productos por operación. Usa 0% para quitar la oferta.</small>
+        </form>
+      )}
+
       <div className="filter-container">
         <div className="filter-search">
           <input 
@@ -222,6 +301,9 @@ export default function ProductTable({ products = [], loading, error, onEdit, on
         <table className="product-table">
           <thead>
             <tr style={{ backgroundColor: '#ebf8ff', color: '#2c5282' }}>
+              <th style={{ padding: '14px', width: '44px', textAlign: 'center' }}>
+                <input type="checkbox" aria-label="Seleccionar productos filtrados" checked={allFilteredSelected} onChange={toggleFilteredSelection} />
+              </th>
               <th style={{ padding: '14px', width: '70px', textAlign: 'center' }}>Foto</th>
               <th style={{ padding: '14px', width: '130px' }}>SKU</th>
               <th style={{ padding: '14px', minWidth: '220px' }}>Producto / Detalle</th>
@@ -233,7 +315,7 @@ export default function ProductTable({ products = [], loading, error, onEdit, on
           <tbody>
             {filteredProducts.length === 0 ? (
               <tr>
-                <td colSpan="6" style={{ padding: '30px', textAlign: 'center', color: '#718096' }}>
+                <td colSpan="7" style={{ padding: '30px', textAlign: 'center', color: '#718096' }}>
                   No se encontraron equipos que coincidan con los filtros seleccionados.
                 </td>
               </tr>
@@ -251,10 +333,15 @@ export default function ProductTable({ products = [], loading, error, onEdit, on
                 const descProd = item.descripcion || item.description || '';
                 const marcaProd = item.brand || item.Marca?.nombre || '';
                 const precioProd = Number(item.precioPublico || item.price || 0);
+                const precioLista = Number(item.originalPrice ?? item.precioPublico ?? item.price ?? 0);
+                const idSeleccionado = item.productoId || item.id || item.ProductoId;
                 const stockDisponible = item.stock ?? 0;
 
                 return (
                   <tr key={idClave} style={{ borderBottom: '1px solid #edf2f7' }}>
+                    <td style={{ padding: '10px', textAlign: 'center' }}>
+                      <input type="checkbox" aria-label={`Seleccionar ${nombreProd}`} checked={selectedProductIds.includes(idSeleccionado)} onChange={() => toggleProductSelection(idSeleccionado)} />
+                    </td>
                     <td style={{ padding: '10px', textAlign: 'center' }}>
                       <img 
                         src={
@@ -279,7 +366,9 @@ export default function ProductTable({ products = [], loading, error, onEdit, on
                       {marcaProd && <div style={{ fontSize: '0.78rem', color: '#a0aec0', marginTop: '2px' }}>Marca: {marcaProd}</div>}
                     </td>
                     <td style={{ padding: '14px', fontWeight: '500', color: '#2d3748', whiteSpace: 'nowrap' }}>
-                      ${precioProd.toLocaleString()} MXN
+                      {item.offerActive ? (
+                        <><span style={{ display: 'block', color: '#8293a0', textDecoration: 'line-through' }}>${precioLista.toLocaleString()} MXN</span><strong style={{ color: '#c24135' }}>${precioProd.toLocaleString()} MXN</strong><small style={{ display: 'block', color: '#c24135' }}>-{item.discountPercentage}% oferta</small></>
+                      ) : `$${precioLista.toLocaleString()} MXN`}
                     </td>
                     <td style={{ padding: '14px', color: stockDisponible > 0 ? '#38a169' : '#e53e3e', fontWeight: 'bold' }}>
                       {stockDisponible}

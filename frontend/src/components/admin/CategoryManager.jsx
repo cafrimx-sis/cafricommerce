@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import api from "../../lib/api";
 
 export default function CategoryManager() {
@@ -6,11 +6,7 @@ export default function CategoryManager() {
   const [subCategorias, setSubCategorias] = useState([]);
   const [categoriaSeleccionadaId, setCategoriaSeleccionadaId] = useState(null);
 
-  useEffect(() => {
-    cargarDatos();
-  }, []);
-
-  const cargarDatos = async () => {
+  const cargarDatos = useCallback(async () => {
     try {
       const [resCat, resSub] = await Promise.all([
         api.get("/categorias"),
@@ -19,13 +15,38 @@ export default function CategoryManager() {
       setCategorias(resCat.data || []);
       setSubCategorias(resSub.data || []);
 
-      if (resCat.data && resCat.data.length > 0 && !categoriaSeleccionadaId) {
-        setCategoriaSeleccionadaId(resCat.data[0].categoriaId || resCat.data[0].CategoriaId);
+      if (resCat.data && resCat.data.length > 0) {
+        const firstCategoryId = resCat.data[0].categoriaId || resCat.data[0].CategoriaId;
+        setCategoriaSeleccionadaId((currentId) => currentId || firstCategoryId);
       }
     } catch (err) {
       console.error("Error al cargar datos", err);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      api.get("/categorias"),
+      api.get("/subcategorias")
+    ])
+      .then(([resCat, resSub]) => {
+        if (!active) return;
+        setCategorias(resCat.data || []);
+        setSubCategorias(resSub.data || []);
+        const firstCategoryId = resCat.data?.[0]?.categoriaId || resCat.data?.[0]?.CategoriaId;
+        if (firstCategoryId) {
+          setCategoriaSeleccionadaId((currentId) => currentId || firstCategoryId);
+        }
+      })
+      .catch((err) => {
+        if (active) console.error("Error al cargar datos", err);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleCreateCategoria = async () => {
     const nombre = prompt("Nombre de la nueva categoría principal:");

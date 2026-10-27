@@ -9,7 +9,7 @@ namespace Ecommerce.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [AllowAnonymous]
+    [Authorize(Roles = "Administrador")]
     public class SubCategoriasController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -19,8 +19,8 @@ namespace Ecommerce.API.Controllers
             _context = context;
         }
 
-        // 🌐 Listar todas las subcategorías o filtrar por CategoriaId opcional
         [HttpGet]
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<SubCategoria>>> GetSubCategorias([FromQuery] int? categoriaId)
         {
             var query = _context.SubCategorias.Include(s => s.Categoria).AsQueryable();
@@ -33,8 +33,8 @@ namespace Ecommerce.API.Controllers
             return await query.ToListAsync();
         }
 
-        // 🌐 Detalle de una subcategoría por ID
         [HttpGet("{id}")]
+        [AllowAnonymous]
         public async Task<ActionResult<SubCategoria>> GetSubCategoria(int id)
         {
             var subCategoria = await _context.SubCategorias

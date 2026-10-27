@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../lib/api'; 
 import loginImage from '../assets/login.jpg';
@@ -17,7 +17,7 @@ export default function Registro() {
     width: '100%', 
     padding: '12px', 
     margin: '5px 0 10px 0', 
-    border: '2px solid #cbd5e0', // Borde más oscuro y definido
+    border: '2px solid #cbd5e0',
     borderRadius: '8px', 
     fontSize: '13px', 
     boxSizing: 'border-box',
@@ -27,7 +27,7 @@ export default function Registro() {
   const labelStyle = { 
     fontSize: '11px', 
     fontWeight: '800', 
-    color: '#2d3748', // Color más sólido para las etiquetas
+    color: '#2d3748',
     textTransform: 'uppercase',
     letterSpacing: '0.5px' 
   };
@@ -38,12 +38,14 @@ export default function Registro() {
     if (formData.codigoPostal.length === 5) {
       try {
         const response = await api.get(`/direcciones/buscar-por-cp/${formData.codigoPostal}`);
-        if (response.data && Array.isArray(response.data)) {
-          const colonias = response.data.map(item => item.response.asentamiento);
+        if (response.data && response.data.response && response.data.response.asentamiento) {
+          const colonias = response.data.response.asentamiento;
           setListaColonias(colonias);
           setFormData(prev => ({ ...prev, colonia: colonias[0] }));
         }
-      } catch (err) { alert("No se pudieron cargar las colonias."); }
+      } catch {
+        alert("No se pudieron cargar las colonias.");
+      }
     }
   };
 
@@ -53,10 +55,15 @@ export default function Registro() {
     setLoading(true);
     try {
       await api.post('/auth/registrar', formData);
-      alert("¡Registro exitoso!");
-      navigate('/login');
-    } catch (err) { alert(err.response?.data?.mensaje || "Error al registrar"); }
-    finally { setLoading(false); }
+      alert("¡Registro exitoso! Revisa tu correo para obtener el código de verificación.");
+      // Redirige a la pantalla de verificación pasando el correo
+      navigate('/verificar', { state: { email: formData.email } });
+    } catch (err) {
+      alert(err.response?.data?.mensaje || "Error al registrar");
+    }
+    finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -64,7 +71,6 @@ export default function Registro() {
       <style>{`
         .reg-card { animation: fadeIn 0.8s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        /* Efecto de foco para que se vea claramente dónde estás escribiendo */
         .input-modern:focus { border-color: #3182ce !important; outline: none; box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.2); }
         .btn-hover:hover { transform: scale(1.02); background-color: #2a4a7a !important; }
         .spinner { border: 3px solid rgba(255,255,255,0.3); width: 20px; height: 20px; border-radius: 50%; border-top-color: #fff; animation: spin 1s linear infinite; display: inline-block; }

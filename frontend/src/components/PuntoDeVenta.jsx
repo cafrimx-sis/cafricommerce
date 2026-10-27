@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 
@@ -11,12 +11,15 @@ export default function PuntoDeVenta() {
   const [descuentoPorcentaje, setDescuentoPorcentaje] = useState(0);
   const [procesando, setProcesando] = useState(false);
 
-  const BASE_URL = 'http://localhost:5104';
+  // 📄 Estado para mostrar el ticket de la última venta cobrada
+  const [ticketCompletado, setTicketCompletado] = useState(null);
+
+  const BASE_URL = api.defaults.baseURL.replace(/\/api\/?$/, '');
 
   const getImageUrl = (rutaRaw) => {
     if (!rutaRaw) return "https://placehold.co/200x150?text=Sin+Imagen";
     if (rutaRaw.startsWith('http')) return rutaRaw;
-    const fileName = rutaRaw.replace(/^.*[\\\/]/, ''); 
+    const fileName = rutaRaw.replaceAll('\\', '/').split('/').pop() || '';
     return `${BASE_URL}/productos/${fileName}`;
   };
 
@@ -24,7 +27,7 @@ export default function PuntoDeVenta() {
     cargarProductos();
   }, []);
 
-  const cargarProductos = () => {
+  function cargarProductos() {
     api.get('/productos')
       .then(res => {
         let lista = [];
@@ -43,7 +46,7 @@ export default function PuntoDeVenta() {
         setProductos(lista);
       })
       .catch(() => toast.error('Error al cargar el inventario de productos'));
-  };
+  }
 
   const agregarAlTicket = (prod) => {
     const idClave = prod.id || prod.productoId;
@@ -122,13 +125,19 @@ export default function PuntoDeVenta() {
       return;
     }
 
+    const subtotalCalc = calcularSubtotal();
+    const totalCalc = calcularTotalFinal();
+    const clienteActual = cliente.trim() || 'Público General';
+    const metodoPagoActual = metodoPago;
+    const itemsCopia = [...carritoPos];
+
     const payload = {
-      cliente: cliente.trim() || 'Público General',
-      metodoPago: metodoPago,
-      subtotal: calcularSubtotal(),
+      cliente: clienteActual,
+      metodoPago: metodoPagoActual,
+      subtotal: subtotalCalc,
       descuentoPorcentaje: Number(descuentoPorcentaje) || 0,
-      total: calcularTotalFinal(),
-      items: carritoPos.map(i => ({
+      total: totalCalc,
+      items: itemsCopia.map(i => ({
         productoId: i.productoId,
         cantidad: i.cantidad,
         precioUnitario: i.precioUnitario
@@ -138,7 +147,23 @@ export default function PuntoDeVenta() {
     setProcesando(true);
     try {
       const response = await api.post('/ventas', payload);
-      toast.success(`¡Venta cobrada con éxito! Folio #${response.data.ventaId || response.data.id || 'OK'}`);
+      const ventaIdGenerado = response.data.ventaId || response.data.id || 'N/D';
+      const totalAutorizado = Number(response.data.total);
+      
+      toast.success(`¡Venta cobrada con éxito! Folio #${ventaIdGenerado}`);
+
+      // 📄 Guardamos los datos de la venta para mostrarlos en el Ticket emergente
+      setTicketCompletado({
+        folio: ventaIdGenerado,
+        fecha: new Date().toLocaleString(),
+        cliente: clienteActual,
+        metodoPago: metodoPagoActual,
+        items: itemsCopia,
+        subtotal: subtotalCalc,
+        descuento: subtotalCalc - totalAutorizado,
+        total: totalAutorizado
+      });
+
       setCarritoPos([]);
       setCliente('Público General');
       setDescuentoPorcentaje(0);
@@ -158,7 +183,7 @@ export default function PuntoDeVenta() {
   });
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 70px)', backgroundColor: '#f3f4f6', fontFamily: 'sans-serif' }}>
+    <div style={{ display: 'flex', height: 'calc(100vh - 70px)', backgroundColor: '#f3f4f6', fontFamily: 'sans-serif', position: 'relative' }}>
       
       {/* Sección Izquierda: Catálogo Mostrador */}
       <div style={{ flex: 2, padding: '25px', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
@@ -308,6 +333,93 @@ export default function PuntoDeVenta() {
           {procesando ? 'Procesando Venta...' : 'Completar y Cobrar Venta'}
         </button>
       </div>
+
+      {/* 📄 MODAL DE TICKET EXITOSO */}
+      {ticketCompletado && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          
+          {/* 🖨️ Regla CSS para ocultar botones e imprimir solo el ticket limpio */}
+          <style>{`
+            @media print {
+              body * {
+                visibility: hidden;
+              }
+              .ticket-print-area, .ticket-print-area * {
+                visibility: visible;
+              }
+              .ticket-print-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                box-shadow: none !important;
+                padding: 0 !important;
+              }
+              .no-print {
+                display: none !important;
+              }
+            }
+          `}</style>
+
+          <div className="ticket-print-area" style={{ backgroundColor: 'white', padding: '30px', borderRadius: '12px', width: '380px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', fontFamily: 'monospace' }}>
+            
+            <div style={{ textAlign: 'center', borderBottom: '2px dashed #cbd5e0', paddingBottom: '12px', marginBottom: '15px' }}>
+              <h3 style={{ margin: '0 0 5px 0', fontSize: '18px', color: '#1a365d' }}>CAFRI S.A. de C.V.</h3>
+              <p style={{ margin: '0', fontSize: '12px', color: '#718096' }}>Comprobante de Venta - Mostrador POS</p>
+              <p style={{ margin: '5px 0 0 0', fontSize: '14px', fontWeight: 'bold', color: '#2b6cb0' }}>Ticket Folio: #{ticketCompletado.folio}</p>
+            </div>
+
+            <div style={{ fontSize: '12px', marginBottom: '15px', color: '#2d3748' }}>
+              <div><strong>Fecha:</strong> {ticketCompletado.fecha}</div>
+              <div><strong>Cliente:</strong> {ticketCompletado.cliente}</div>
+              <div><strong>Método de Pago:</strong> {ticketCompletado.metodoPago}</div>
+            </div>
+
+            <div style={{ borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', padding: '10px 0', marginBottom: '15px', maxHeight: '180px', overflowY: 'auto' }}>
+              {ticketCompletado.items.map((it, idx) => (
+                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
+                  <span style={{ flex: 1, marginRight: '10px' }}>{it.cantidad}x {it.nombre}</span>
+                  <span>${(it.precioUnitario * it.cantidad).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ fontSize: '13px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <span>Subtotal:</span>
+                <span>${ticketCompletado.subtotal.toLocaleString()}</span>
+              </div>
+              {ticketCompletado.descuento > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', color: '#38a169' }}>
+                  <span>Descuento aplicado:</span>
+                  <span>-${ticketCompletado.descuento.toLocaleString()}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 'bold', borderTop: '1px dashed #cbd5e0', paddingTop: '8px', marginTop: '4px', color: '#1a202c' }}>
+                <span>TOTAL:</span>
+                <span>${ticketCompletado.total.toLocaleString()} MXN</span>
+              </div>
+            </div>
+
+            {/* 🚫 Contenedor con clase 'no-print' para ocultarse al imprimir */}
+            <div className="no-print" style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                onClick={() => window.print()} 
+                style={{ flex: 1, padding: '10px', backgroundColor: '#3182ce', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
+              >
+                🖨️ Imprimir
+              </button>
+              <button 
+                onClick={() => setTicketCompletado(null)} 
+                style={{ flex: 1, padding: '10px', backgroundColor: '#e2e8f0', color: '#4a5568', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
+              >
+                Cerrar y Nuevo
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

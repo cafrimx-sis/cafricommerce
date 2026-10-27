@@ -1,0 +1,13 @@
+.git
+.github
+.vs
+**/bin
+**/obj
+**/node_modules
+frontend/dist
+**/.env
+**/.env.*
+**/appsettings.Development.json
+**/appsettings.*.local.json
+**/secrets
+**/UserSecrets

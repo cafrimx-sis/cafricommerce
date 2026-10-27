@@ -2,6 +2,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
+using System.Net;
+using System.Net.Mail;
 using Ecommerce.API.Data;
 using Ecommerce.API.Entities;
 using Ecommerce.API.DTOs;
@@ -13,13 +15,20 @@ namespace Ecommerce.API.Controllers
     [Authorize]
     public class OrdenesController : ControllerBase
     {
+        private static readonly TimeSpan PaymentConfirmationWindow = TimeSpan.FromHours(24);
+
         private readonly ApplicationDbContext _context;
         private readonly ILogger<OrdenesController> _logger;
+        private readonly IConfiguration _configuration;
 
-        public OrdenesController(ApplicationDbContext context, ILogger<OrdenesController> logger)
+        public OrdenesController(
+            ApplicationDbContext context,
+            ILogger<OrdenesController> logger,
+            IConfiguration configuration)
         {
             _context = context;
             _logger = logger;
+            _configuration = configuration;
         }
 
         [HttpGet("mis-compras")]
@@ -27,12 +36,13 @@ namespace Ecommerce.API.Controllers
         {
             try
             {
-                var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userIdClaim = User.FindFirstValue("sub");
                 if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int usuarioId))
                 {
                     return Unauthorized(new { mensaje = "No se pudo identificar al usuario autenticado." });
                 }
 
+                await MarcarPagosPayPalNoConfirmadosAsync(usuarioId);
                 var ordenes = await _context.Ordenes
                     .Where(o => o.UsuarioId == usuarioId)
                     .OrderByDescending(o => o.FechaOrden)
@@ -81,6 +91,8 @@ namespace Ecommerce.API.Controllers
                         o.MetodoPago,
                         o.FechaOrden,
                         o.PayPalOrderId,
+                        o.Paqueteria,
+                        o.NumeroGuia,
                         usuario = usuario == null ? null : new
                         {
                             Nombre = usuario.Nombre ?? "",
@@ -126,11 +138,12 @@ namespace Ecommerce.API.Controllers
         }
 
         [HttpGet("admin/todas")]
-        [Authorize]
+        [Authorize(Roles = "Administrador")] // 🔒 CORREGIDO: Restringido estrictamente al rol de Administrador
         public async Task<IActionResult> GetTodasLasOrdenesAdmin()
         {
             try
             {
+                await MarcarPagosPayPalNoConfirmadosAsync();
                 var ordenes = await _context.Ordenes
                     .OrderByDescending(o => o.FechaOrden)
                     .ToListAsync();
@@ -183,6 +196,8 @@ namespace Ecommerce.API.Controllers
                         o.FechaOrden,
                         o.PayPalOrderId,
                         o.ReferenciaPago,
+                        o.Paqueteria,
+                        o.NumeroGuia,
                         usuario = usuario == null ? null : new
                         {
                             Nombre = usuario.Nombre ?? "",
@@ -227,13 +242,144 @@ namespace Ecommerce.API.Controllers
             }
         }
 
+        [HttpPut("admin/{id:int}/estado")]
+        [Authorize(Roles = "Administrador")]
+        public async Task<IActionResult> ActualizarEstadoAdmin(int id, [FromBody] ActualizarEstadoOrdenDto dto)
+        {
+            var orden = await _context.Ordenes.FindAsync(id);
+            if (orden == null)
+                return NotFound(new { mensaje = "Orden no encontrada." });
+
+            if (string.IsNullOrWhiteSpace(dto.Estado))
+                return BadRequest(new { mensaje = "El estado de la orden es obligatorio." });
+
+            var siguienteEstado = dto.Estado.Trim();
+            var transicionValida = (orden.EstadoOrden, siguienteEstado) switch
+            {
+                ("Pagado", "En preparación") => true,
+                ("En preparación", "Enviado") => true,
+                ("Enviado", "Entregado") => true,
+                _ => false
+            };
+
+            if (!transicionValida)
+            {
+                return Conflict(new
+                {
+                    mensaje = orden.EstadoOrden is "Pendiente" or "Pendiente Pago PayPal"
+                        ? "No se puede avanzar una orden hasta que PayPal confirme el pago."
+                        : "La transición de estado solicitada no es válida."
+                });
+            }
+
+            if (siguienteEstado == "Enviado" &&
+                (string.IsNullOrWhiteSpace(dto.Paqueteria) || string.IsNullOrWhiteSpace(dto.NumeroGuia)))
+            {
+                return BadRequest(new { mensaje = "La paquetería y el número de guía son obligatorios para marcar el pedido como enviado." });
+            }
+
+            orden.EstadoOrden = siguienteEstado;
+            if (siguienteEstado == "Enviado")
+            {
+                orden.Paqueteria = dto.Paqueteria!.Trim();
+                orden.NumeroGuia = dto.NumeroGuia!.Trim();
+            }
+            await _context.SaveChangesAsync();
+
+            var notificacionEnviada = true;
+            if (siguienteEstado == "Enviado")
+            {
+                notificacionEnviada = await NotificarEnvioAsync(orden);
+            }
+
+            return Ok(new
+            {
+                mensaje = notificacionEnviada
+                    ? "Estado de la orden actualizado."
+                    : "El pedido fue marcado como enviado, pero no se pudo enviar el correo de notificación.",
+                estadoOrden = orden.EstadoOrden,
+                orden.Paqueteria,
+                orden.NumeroGuia,
+                notificacionEnviada
+            });
+        }
+
+        private async Task<bool> NotificarEnvioAsync(Orden orden)
+        {
+            var usuario = await _context.Usuarios
+                .Where(u => u.UsuarioId == orden.UsuarioId)
+                .Select(u => new { u.Email, u.Nombre })
+                .FirstOrDefaultAsync();
+            if (usuario == null || string.IsNullOrWhiteSpace(usuario.Email))
+            {
+                _logger.LogWarning("No se envió la notificación de envío de la orden {OrderId}: el cliente no tiene correo registrado.", orden.Id);
+                return false;
+            }
+
+            try
+            {
+                var smtpServer = _configuration["EmailSettings:Server"];
+                var senderEmail = _configuration["EmailSettings:SenderEmail"];
+                var senderName = _configuration["EmailSettings:SenderName"] ?? "CAFRI E-commerce";
+                var smtpPassword = _configuration["EmailSettings:Password"];
+                if (!int.TryParse(_configuration["EmailSettings:Port"], out var smtpPort) ||
+                    string.IsNullOrWhiteSpace(smtpServer) ||
+                    string.IsNullOrWhiteSpace(senderEmail) ||
+                    string.IsNullOrWhiteSpace(smtpPassword))
+                {
+                    _logger.LogWarning("No se envió la notificación de envío de la orden {OrderId}: la configuración SMTP está incompleta.", orden.Id);
+                    return false;
+                }
+
+                using var mensaje = new MailMessage
+                {
+                    From = new MailAddress(senderEmail, senderName),
+                    Subject = $"Tu pedido #{orden.Id} fue enviado",
+                    Body = $"Hola {usuario.Nombre},\n\nTu pedido #{orden.Id} ya fue enviado.\n\nPaquetería: {orden.Paqueteria}\nNúmero de guía: {orden.NumeroGuia}\n\nGracias por comprar en CAFRI E-commerce.",
+                    IsBodyHtml = false
+                };
+                mensaje.To.Add(usuario.Email);
+
+                using var clienteSmtp = new SmtpClient(smtpServer, smtpPort)
+                {
+                    Credentials = new NetworkCredential(senderEmail, smtpPassword),
+                    EnableSsl = true
+                };
+                await clienteSmtp.SendMailAsync(mensaje);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "No se pudo enviar la notificación de envío de la orden {OrderId}.", orden.Id);
+                return false;
+            }
+        }
+
+        private async Task MarcarPagosPayPalNoConfirmadosAsync(int? usuarioId = null)
+        {
+            var limiteConfirmacion = DateTime.UtcNow.Subtract(PaymentConfirmationWindow);
+            var ordenesExpiradas = _context.Ordenes.Where(orden =>
+                orden.PayPalOrderId != null &&
+                orden.FechaOrden <= limiteConfirmacion &&
+                (orden.EstadoOrden == "Pendiente" || orden.EstadoOrden == "Pendiente Pago PayPal"));
+
+            if (usuarioId.HasValue)
+                ordenesExpiradas = ordenesExpiradas.Where(orden => orden.UsuarioId == usuarioId.Value);
+
+            var cantidadActualizada = await ordenesExpiradas.ExecuteUpdateAsync(updates =>
+                updates.SetProperty(orden => orden.EstadoOrden, "Pago no completado"));
+            if (cantidadActualizada > 0)
+                _logger.LogInformation("Se marcaron {OrderCount} órdenes PayPal como pago no completado.", cantidadActualizada);
+        }
+
+        [NonAction]
         [HttpPost("paypal")]
         public async Task<IActionResult> CreateOrderPayPal([FromBody] CheckoutDto solicitud)
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userIdClaim = User.FindFirstValue("sub");
                 if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int usuarioId))
                 {
                     return Unauthorized(new { mensaje = "No se pudo identificar al usuario autenticado." });
@@ -309,6 +455,7 @@ namespace Ecommerce.API.Controllers
                     Total = totalDefinitivo,
                     EstadoOrden = "Pendiente Pago PayPal",
                     MetodoPago = "PayPal",
+                    PayPalOrderId = solicitud.PayPalOrderId,
                     FechaOrden = DateTime.UtcNow
                 };
 
@@ -338,19 +485,34 @@ namespace Ecommerce.API.Controllers
             }
         }
 
+        [NonAction]
         [HttpPost("paypal/capturar/{ordenId}")]
         public async Task<IActionResult> CapturarPayPal(int ordenId, [FromBody] PaypalCaptureDto dto)
         {
+            var userIdClaim = User.FindFirstValue("sub");
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int usuarioId))
+            {
+                return Unauthorized(new { mensaje = "No se pudo identificar al usuario autenticado." });
+            }
+
             var orden = await _context.Ordenes.FindAsync(ordenId);
             if (orden == null) return NotFound(new { mensaje = "Orden no encontrada." });
 
+            // 🔒 CORREGIDO: Evitar vulnerabilidad IDOR validando propiedad o rol de administrador
+            var esAdmin = User.IsInRole("Administrador");
+            if (orden.UsuarioId != usuarioId && !esAdmin)
+            {
+                return Forbid();
+            }
+
             orden.EstadoOrden = "Pagado";
-            orden.PayPalOrderId = dto.PayPalOrderId;
+            orden.PayPalOrderId = dto.PayPalOrderId ?? orden.PayPalOrderId;
             await _context.SaveChangesAsync();
 
             return Ok(new { mensaje = "Pago con PayPal registrado y completado con éxito." });
         }
 
+        [NonAction]
         [HttpPost("webhook/paypal")]
         [AllowAnonymous]
         public async Task<IActionResult> RecibirWebhookPayPal([FromBody] PayPalWebhookPayload payload)

@@ -1,5 +1,3 @@
-import React from 'react';
-
 export default function PaymentView({ formData = {}, total = 0, loading, onBack, onPay }) {
   return (
     <div style={{ padding: '16px', boxSizing: 'border-box' }}>

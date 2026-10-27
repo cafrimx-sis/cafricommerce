@@ -8,8 +8,7 @@ namespace Ecommerce.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    // [Authorize(Roles = "Administrador")] // Comentado temporalmente para pruebas
-    [AllowAnonymous]
+    [Authorize(Roles = "Administrador")]
     public class CategoriasController : ControllerBase
     {
         private readonly ApplicationDbContext _context;

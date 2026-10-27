@@ -1,18 +1,31 @@
-// src/components/auth/ProtectedRoute.jsx
-import React from 'react';
 import { Navigate } from 'react-router-dom';
 
-export default function ProtectedRoute({ children }) {
+function rolCoincide(rolUsuario, rolesPermitidos) {
+  const actual = String(rolUsuario || '').toLowerCase();
+  return rolesPermitidos.some((rol) => {
+    const requerido = String(rol).toLowerCase();
+    if (requerido === 'admin' || requerido === 'administrador') {
+      return actual === 'admin' || actual === 'administrador';
+    }
+    return actual === requerido;
+  });
+}
+
+export default function ProtectedRoute({ children, requireAdmin = false, allowedRoles }) {
   const token = localStorage.getItem('token');
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  
-  // Verificación de rol: Si no existe el rol o no es admin, fuera
-  const rol = (user.rol || user.Rol || '').toLowerCase();
-  const isAdmin = rol === 'admin' || rol === 'administrador';
+  const rol = user.rol || user.Rol || '';
 
-  if (!token || !isAdmin) {
-    // Si no está logueado o no es admin, lo mandamos al login o al inicio
-    return <Navigate to="/login" />;
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const roles = allowedRoles?.length
+    ? allowedRoles
+    : (requireAdmin ? ['Administrador'] : []);
+
+  if (roles.length && !rolCoincide(rol, roles)) {
+    return <Navigate to="/" replace />;
   }
 
   return children;

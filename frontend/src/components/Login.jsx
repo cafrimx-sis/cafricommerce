@@ -1,116 +1,154 @@
-import React, { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import api from '../lib/api'; 
-import loginImage from '../assets/login.jpg';
+import api from '../lib/api';
+import './Login.css';
 
 export default function Login({ onLoginSuccess }) {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
+  const [showLoadingScreen, setShowLoadingScreen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const loadingScreenTimer = useRef(null);
   const navigate = useNavigate();
 
-  const inputStyle = { 
-    width: '100%', 
-    padding: '12px', 
-    margin: '4px 0 14px 0', 
-    border: '1px solid #cbd5e0', 
-    borderRadius: '6px', 
-    fontSize: '14px', 
-    boxSizing: 'border-box',
-    backgroundColor: '#ffffff'
-  };
+  useEffect(() => () => window.clearTimeout(loadingScreenTimer.current), []);
 
-  const labelStyle = { 
-    fontSize: '11px', 
-    fontWeight: '700', 
-    color: '#2d3748', 
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px' 
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    if (error) setError('');
   };
-
-  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
+
+    const email = formData.email.trim().toLowerCase();
+    if (!email || !formData.password) {
+      setError('Ingresa tu correo electrónico y contraseña.');
+      return;
+    }
+
     setLoading(true);
+    setError('');
+    loadingScreenTimer.current = window.setTimeout(() => setShowLoadingScreen(true), 700);
     try {
-      const response = await api.post('/auth/login', { email: formData.email, password: formData.password });
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data));
-      onLoginSuccess(response.data);
+      const response = await api.post('/auth/login', { email, password: formData.password });
+      const { token, usuario } = response.data || {};
+      if (!token || !usuario) {
+        throw new Error('El servidor no devolvió los datos necesarios para iniciar sesión.');
+      }
+
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(usuario));
+      onLoginSuccess(usuario);
       navigate('/');
     } catch (err) {
-      alert("Error: " + (err.response?.data?.mensaje || "Credenciales incorrectas"));
+      setError(
+        err.response?.data?.mensaje ||
+        err.message ||
+        'No se pudo iniciar sesión. Revisa tus datos e inténtalo de nuevo.'
+      );
     } finally {
+      window.clearTimeout(loadingScreenTimer.current);
+      loadingScreenTimer.current = null;
+      setShowLoadingScreen(false);
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ fontFamily: "'Inter', sans-serif" }}>
-      <style>{`
-        .login-wrapper {
-          display: flex;
-          min-height: 100vh;
-          width: 100%;
-        }
-
-        .login-form-side {
-          flex: 1;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          padding: 30px;
-          background-color: white;
-          box-sizing: border-box;
-        }
-
-        .login-image-side {
-          flex: 1.2;
-          position: relative;
-          background-color: #1a365d;
-        }
-
-        @media (max-width: 850px) {
-          .login-image-side {
-            display: none;
-          }
-          .login-form-side {
-            padding: 24px 16px;
-          }
-        }
-      `}</style>
+    <div className="login-page">
+      {showLoadingScreen && (
+        <div className="login-loading-overlay" role="status" aria-live="polite">
+          <span className="login-loading-spinner" aria-hidden="true" />
+          <strong>Iniciando sesión</strong>
+          <span>Estamos verificando tus datos...</span>
+        </div>
+      )}
 
       <div className="login-wrapper">
         <div className="login-form-side">
-          <div style={{ width: '100%', maxWidth: '380px' }}>
-            <h1 style={{ fontSize: '28px', marginBottom: '8px', color: '#1a365d', fontWeight: '800' }}>Bienvenido</h1>
-            <p style={{ color: '#718096', marginBottom: '24px', fontSize: '14px' }}>Ingresa tus credenciales para acceder a CAFRI</p>
-            
-            <form onSubmit={handleSubmit}>
-              <label style={labelStyle}>Correo Electrónico</label>
-              <input name="email" type="email" onChange={handleChange} style={inputStyle} placeholder="usuario@ejemplo.com" required />
-              
-              <label style={labelStyle}>Contraseña</label>
-              <input name="password" type="password" onChange={handleChange} style={inputStyle} placeholder="••••••••" required />
-              
-              <button type="submit" disabled={loading} style={{ 
-                width: '100%', padding: '12px', backgroundColor: '#1a365d', color: 'white', 
-                border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', 
-                fontSize: '14px', marginTop: '6px' 
-              }}>
-                {loading ? 'Ingresando...' : 'INGRESAR'}
+          <div className="login-form-content">
+            <span className="login-eyebrow">CAFRI · HVACR</span>
+            <h1>Bienvenido</h1>
+            <p className="login-subtitle">Ingresa tus credenciales para acceder a tu cuenta y continuar con tu compra.</p>
+
+            <form onSubmit={handleSubmit} aria-busy={loading}>
+              <label htmlFor="login-email">Correo electrónico</label>
+              <input
+                id="login-email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                spellCheck="false"
+                value={formData.email}
+                onChange={handleChange}
+                className="login-input"
+                placeholder="usuario@ejemplo.com"
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? 'login-error' : undefined}
+                required
+              />
+
+              <label htmlFor="login-password">Contraseña</label>
+              <div className="login-password-field">
+                <input
+                  id="login-password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  className="login-input"
+                  placeholder="Ingresa tu contraseña"
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={error ? 'login-error' : undefined}
+                  required
+                />
+                <button
+                  type="button"
+                  className="login-password-toggle"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  aria-pressed={showPassword}
+                >
+                  {showPassword ? 'Ocultar' : 'Mostrar'}
+                </button>
+              </div>
+
+              {error && (
+                <p id="login-error" className="login-error" role="alert">
+                  {error}
+                </p>
+              )}
+
+              <div style={{ textAlign: 'right', marginBottom: '14px' }}>
+                <Link to="/olvide-password" className="login-link">
+                  ¿Olvidaste tu contraseña?
+                </Link>
+              </div>
+
+              <button type="submit" disabled={loading} className="login-submit">
+                {loading && <span className="login-spinner" aria-hidden="true" />}
+                {loading ? 'Ingresando...' : 'Iniciar sesión'}
               </button>
             </form>
 
-            <p style={{ marginTop: '20px', textAlign: 'center', fontSize: '13px', color: '#4a5568' }}>
-              ¿No tienes cuenta? <Link to="/registro" style={{ color: '#3182ce', fontWeight: 'bold', textDecoration: 'none' }}>Regístrate aquí</Link>
+            <p className="login-register">
+              ¿No tienes cuenta? <Link to="/registro" className="login-link">Regístrate aquí</Link>
             </p>
           </div>
         </div>
 
-        <div className="login-image-side">
-          <img src={loginImage} alt="Login Background" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.9 }} />
-          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(26, 54, 93, 0.3)' }}></div>
+        <div className="login-image-side" aria-label="Identidad visual CAFRI para equipos HVACR">
+          <div className="login-orbit" aria-hidden="true">❄</div>
+          <div className="login-visual-copy">
+            <span>Confort · Control · Confianza</span>
+            <h2>Soluciones para cada clima.</h2>
+            <p>Encuentra equipos y componentes HVACR para tus proyectos, con una experiencia de compra sencilla y clara.</p>
+          </div>
         </div>
       </div>
     </div>

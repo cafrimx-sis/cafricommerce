@@ -5,6 +5,7 @@
         public string Cliente { get; set; } = "Público General";
         public string MetodoPago { get; set; } = "Efectivo";
         public decimal Total { get; set; }
+        public decimal DescuentoPorcentaje { get; set; }
         public List<ItemVentaDto> Items { get; set; } = new();
     }
 

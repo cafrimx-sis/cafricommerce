@@ -10,7 +10,7 @@ namespace Ecommerce.API.Entities
     {
         [Key]
         public int VentaId { get; set; }
-        public DateTime FechaCreacion { get; set; } = DateTime.Now;
+        public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
 
         [Required]
         [Column(TypeName = "decimal(18,2)")]

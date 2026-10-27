@@ -46,5 +46,15 @@ namespace Ecommerce.API.Entities
         // --- NUEVOS CAMPOS ---
         [StringLength(50)]
         public string? ReferenciaPago { get; set; } // Agregado para OXXO
+
+        [StringLength(100)]
+        public string? Paqueteria { get; set; }
+
+        [StringLength(100)]
+        public string? NumeroGuia { get; set; }
+
+        public bool InventarioReservado { get; set; }
+
+        public DateTime? InventarioReservaExpiraUtc { get; set; }
     }
 }
