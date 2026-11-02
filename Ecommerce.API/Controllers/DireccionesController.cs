@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Ecommerce.API.Data;
 using Ecommerce.API.Entities;
@@ -18,6 +17,8 @@ namespace Ecommerce.API.Controllers
     [Authorize] // 🔒 Requiere autenticación por defecto para todo el controlador
     public class DireccionesController : ControllerBase
     {
+        private static readonly SemaphoreSlim CatalogLoadLock = new(1, 1);
+        private static Dictionary<string, CodigoPostalInfo>? _catalogoCodigosPostales;
         private readonly IWebHostEnvironment _env;
         private readonly ApplicationDbContext _context;
 
@@ -33,6 +34,9 @@ namespace Ecommerce.API.Controllers
         {
             try
             {
+                if (cp.Length != 5 || cp.Any(character => character < '0' || character > '9'))
+                    return BadRequest(new { mensaje = "El código postal debe contener exactamente 5 dígitos." });
+
                 var filePath = Path.Combine(_env.ContentRootPath, "Data", "cp.json");
 
                 if (!System.IO.File.Exists(filePath))
@@ -40,62 +44,37 @@ namespace Ecommerce.API.Controllers
                     return NotFound(new { mensaje = "El archivo cp.json no se encuentra en la carpeta Data del servidor." });
                 }
 
-                var jsonContent = await System.IO.File.ReadAllTextAsync(filePath);
-
-                // Sanitizamos cualquier variante de NaN o nan de Python/Pandas reemplazándola por null
-                jsonContent = Regex.Replace(jsonContent, @"\b[nN][aA][nN]\b", "null", RegexOptions.IgnoreCase);
-
-                using var doc = JsonDocument.Parse(jsonContent);
-                var root = doc.RootElement;
-
-                var coincidencias = new List<JsonElement>();
-
-                // Recorremos cada estado del diccionario (ignorando la clave "Nota")
-                foreach (var property in root.EnumerateObject())
+                var catalogo = _catalogoCodigosPostales;
+                if (catalogo is null)
                 {
-                    if (property.Name == "Nota") continue;
-
-                    if (property.Value.ValueKind == JsonValueKind.Array)
+                    await CatalogLoadLock.WaitAsync();
+                    try
                     {
-                        foreach (var item in property.Value.EnumerateArray())
+                        catalogo = _catalogoCodigosPostales;
+                        if (catalogo is null)
                         {
-                            if (item.TryGetProperty("d_codigo", out var prop))
-                            {
-                                string codigoStr = prop.ValueKind == JsonValueKind.Number
-                                    ? prop.GetInt32().ToString()
-                                    : prop.GetString() ?? string.Empty;
-
-                                if (codigoStr == cp)
-                                {
-                                    coincidencias.Add(item);
-                                }
-                            }
+                            catalogo = await CargarCatalogoCodigosPostalesAsync(filePath);
+                            _catalogoCodigosPostales = catalogo;
                         }
+                    }
+                    finally
+                    {
+                        CatalogLoadLock.Release();
                     }
                 }
 
-                if (coincidencias.Count == 0)
+                if (!catalogo.TryGetValue(cp, out var codigoPostal))
                 {
                     return NotFound(new { mensaje = "Código postal no encontrado en la base de datos local." });
                 }
-
-                var asentamientos = coincidencias
-                    .Select(x => x.TryGetProperty("d_asenta", out var asent) ? asent.GetString() : null)
-                    .Where(s => !string.IsNullOrEmpty(s))
-                    .Distinct()
-                    .ToArray();
-
-                var primerElemento = coincidencias.First();
-                var municipio = primerElemento.TryGetProperty("D_mnpio", out var mun) ? mun.GetString() : "";
-                var estado = primerElemento.TryGetProperty("d_estado", out var est) ? est.GetString() : "";
 
                 return Ok(new
                 {
                     response = new
                     {
-                        asentamiento = asentamientos,
-                        municipio = municipio,
-                        estado = estado
+                        asentamiento = codigoPostal.Asentamientos,
+                        municipio = codigoPostal.Municipio,
+                        estado = codigoPostal.Estado
                     }
                 });
             }
@@ -103,6 +82,142 @@ namespace Ecommerce.API.Controllers
             {
                 return StatusCode(500, new { mensaje = "Error interno al procesar el C.P. local.", error = ex.Message });
             }
+        }
+
+        private static async Task<Dictionary<string, CodigoPostalInfo>> CargarCatalogoCodigosPostalesAsync(string filePath)
+        {
+            var catalogo = new Dictionary<string, CodigoPostalInfo>(StringComparer.Ordinal);
+
+            await using var stream = new FileStream(
+                filePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                bufferSize: 64 * 1024,
+                options: FileOptions.Asynchronous | FileOptions.SequentialScan);
+            using var reader = new StreamReader(stream);
+
+            var objectDepth = 0;
+            string? codigo = null;
+            string? asentamiento = null;
+            string? municipio = null;
+            string? estado = null;
+            string? line;
+
+            while ((line = await reader.ReadLineAsync()) is not null)
+            {
+                if (objectDepth == 2)
+                    ReadPostalCodeProperty(line, ref codigo, ref asentamiento, ref municipio, ref estado);
+
+                var insideString = false;
+                var escaped = false;
+                foreach (var character in line)
+                {
+                    if (insideString)
+                    {
+                        if (escaped)
+                            escaped = false;
+                        else if (character == '\\')
+                            escaped = true;
+                        else if (character == '"')
+                            insideString = false;
+
+                        continue;
+                    }
+
+                    if (character == '"')
+                    {
+                        insideString = true;
+                    }
+                    else if (character == '{')
+                    {
+                        objectDepth++;
+                        if (objectDepth == 2)
+                        {
+                            codigo = null;
+                            asentamiento = null;
+                            municipio = null;
+                            estado = null;
+                        }
+                    }
+                    else if (character == '}')
+                    {
+                        if (objectDepth == 2 && codigo is not null && asentamiento is not null)
+                        {
+                            if (!catalogo.TryGetValue(codigo, out var codigoPostal))
+                            {
+                                codigoPostal = new CodigoPostalInfo();
+                                catalogo.Add(codigo, codigoPostal);
+                            }
+
+                            codigoPostal.Asentamientos.Add(asentamiento);
+                            codigoPostal.Municipio ??= municipio;
+                            codigoPostal.Estado ??= estado;
+                        }
+
+                        objectDepth--;
+                    }
+                }
+            }
+
+            return catalogo;
+        }
+
+        private static void ReadPostalCodeProperty(
+            string line,
+            ref string? codigo,
+            ref string? asentamiento,
+            ref string? municipio,
+            ref string? estado)
+        {
+            var property = line.Trim();
+            if (!property.StartsWith('"'))
+                return;
+
+            var separator = property.IndexOf("\":", StringComparison.Ordinal);
+            if (separator < 0)
+                return;
+
+            var name = property[1..separator];
+            var value = property[(separator + 2)..].Trim().TrimEnd(',').Trim();
+            if (value.Length == 0)
+                return;
+
+            switch (name)
+            {
+                case "d_codigo":
+                    if (value[0] == '"')
+                    {
+                        var postalCode = JsonSerializer.Deserialize<string>(value);
+                        if (!string.IsNullOrWhiteSpace(postalCode) &&
+                            int.TryParse(postalCode, out var parsedStringPostalCode))
+                        {
+                            codigo = parsedStringPostalCode.ToString("D5");
+                        }
+                    }
+                    else if (int.TryParse(value, out var parsedNumericPostalCode))
+                    {
+                        codigo = parsedNumericPostalCode.ToString("D5");
+                    }
+
+                    break;
+                case "d_asenta":
+                    asentamiento = JsonSerializer.Deserialize<string>(value);
+                    break;
+                case "D_mnpio":
+                    municipio = JsonSerializer.Deserialize<string>(value);
+                    break;
+                case "d_estado":
+                    estado = JsonSerializer.Deserialize<string>(value);
+                    break;
+            }
+        }
+
+        private sealed class CodigoPostalInfo
+        {
+            public HashSet<string> Asentamientos { get; } = new(StringComparer.Ordinal);
+            public string? Municipio { get; set; }
+            public string? Estado { get; set; }
         }
 
         [HttpPost]
