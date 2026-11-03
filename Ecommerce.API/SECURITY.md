@@ -20,9 +20,7 @@ dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Po
 dotnet user-secrets set "Jwt:Key" "<new random key of at least 32 bytes>"
 dotnet user-secrets set "PayPalSettings:ClientId" "<PayPal client ID>"
 dotnet user-secrets set "PayPalSettings:ClientSecret" "<rotated PayPal secret>"
-dotnet user-secrets set "EmailSettings:Password" "<rotated SMTP app password>"
-dotnet user-secrets set "EmailSettings:Server" "smtp.gmail.com"
-dotnet user-secrets set "EmailSettings:Port" "587"
+dotnet user-secrets set "EmailSettings:ResendApiKey" "<Resend API key>"
 dotnet user-secrets set "EmailSettings:SenderEmail" "<sender address>"
 dotnet user-secrets set "PayPalSettings:WebhookId" "<PayPal webhook ID>"
 dotnet user-secrets set "Cors:AllowedOrigins:0" "http://localhost:5173"
@@ -81,7 +79,9 @@ environment configuration, not in source control:
 | `PayPalSettings__Mode` | `Sandbox` for staging; `Live` only after live verification |
 | `PayPalSettings__ClientId`, `PayPalSettings__ClientSecret` | Credentials for the selected PayPal environment |
 | `PayPalSettings__WebhookId` | Webhook ID registered for the matching environment |
-| `EmailSettings__Server`, `EmailSettings__Port`, `EmailSettings__SenderEmail`, `EmailSettings__Password` | Verified production email provider settings |
+| `EmailSettings__ResendApiKey` | Resend API key, stored as a secret |
+| `EmailSettings__SenderEmail`, `EmailSettings__SenderName` | Sender address from a verified Resend domain and display name |
+| `EmailSettings__AccountingEmail` | Optional recipient for invoice notifications |
 | `Cors__AllowedOrigins__0` | Exact public frontend origin, including `https://` |
 | `Frontend__BaseUrl` | Public frontend origin used in verification and recovery links |
 | `ProductImages__StoragePath` | Absolute path on persistent storage mounted for the API |

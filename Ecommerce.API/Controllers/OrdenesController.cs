@@ -3,10 +3,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using System.Net;
-using System.Net.Mail;
 using Ecommerce.API.Data;
 using Ecommerce.API.Entities;
 using Ecommerce.API.DTOs;
+using Ecommerce.API.Services;
 
 namespace Ecommerce.API.Controllers
 {
@@ -19,16 +19,16 @@ namespace Ecommerce.API.Controllers
 
         private readonly ApplicationDbContext _context;
         private readonly ILogger<OrdenesController> _logger;
-        private readonly IConfiguration _configuration;
+        private readonly ResendEmailSender _emailSender;
 
         public OrdenesController(
             ApplicationDbContext context,
             ILogger<OrdenesController> logger,
-            IConfiguration configuration)
+            ResendEmailSender emailSender)
         {
             _context = context;
             _logger = logger;
-            _configuration = configuration;
+            _emailSender = emailSender;
         }
 
         [HttpGet("mis-compras")]
@@ -318,34 +318,12 @@ namespace Ecommerce.API.Controllers
 
             try
             {
-                var smtpServer = _configuration["EmailSettings:Server"];
-                var senderEmail = _configuration["EmailSettings:SenderEmail"];
-                var senderName = _configuration["EmailSettings:SenderName"] ?? "CAFRI E-commerce";
-                var smtpPassword = _configuration["EmailSettings:Password"];
-                if (!int.TryParse(_configuration["EmailSettings:Port"], out var smtpPort) ||
-                    string.IsNullOrWhiteSpace(smtpServer) ||
-                    string.IsNullOrWhiteSpace(senderEmail) ||
-                    string.IsNullOrWhiteSpace(smtpPassword))
-                {
-                    _logger.LogWarning("No se envió la notificación de envío de la orden {OrderId}: la configuración SMTP está incompleta.", orden.Id);
-                    return false;
-                }
-
-                using var mensaje = new MailMessage
-                {
-                    From = new MailAddress(senderEmail, senderName),
-                    Subject = $"Tu pedido #{orden.Id} fue enviado",
-                    Body = $"Hola {usuario.Nombre},\n\nTu pedido #{orden.Id} ya fue enviado.\n\nPaquetería: {orden.Paqueteria}\nNúmero de guía: {orden.NumeroGuia}\n\nGracias por comprar en CAFRI E-commerce.",
-                    IsBodyHtml = false
-                };
-                mensaje.To.Add(usuario.Email);
-
-                using var clienteSmtp = new SmtpClient(smtpServer, smtpPort)
-                {
-                    Credentials = new NetworkCredential(senderEmail, smtpPassword),
-                    EnableSsl = true
-                };
-                await clienteSmtp.SendMailAsync(mensaje);
+                var textoCorreo = $"Hola {usuario.Nombre},\n\nTu pedido #{orden.Id} ya fue enviado.\n\nPaquetería: {orden.Paqueteria}\nNúmero de guía: {orden.NumeroGuia}\n\nGracias por comprar en CAFRI E-commerce.";
+                await _emailSender.SendAsync(
+                    usuario.Email,
+                    $"Tu pedido #{orden.Id} fue enviado",
+                    textoCorreo,
+                    cancellationToken: HttpContext.RequestAborted);
                 return true;
             }
             catch (Exception ex)

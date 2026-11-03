@@ -46,11 +46,16 @@ en el repositorio:
 | `PayPalSettings__ClientId` | Client ID del entorno PayPal seleccionado |
 | `PayPalSettings__ClientSecret` | Secreto del entorno PayPal seleccionado |
 | `PayPalSettings__WebhookId` | ID del webhook PayPal del mismo entorno |
-| `EmailSettings__Server` | Servidor SMTP |
-| `EmailSettings__Port` | Puerto SMTP |
+| `EmailSettings__ResendApiKey` | Clave API secreta de Resend (`re_...`) |
 | `EmailSettings__SenderEmail` | Correo remitente verificado |
 | `EmailSettings__SenderName` | Nombre del remitente |
-| `EmailSettings__Password` | Credencial SMTP protegida |
+| `EmailSettings__AccountingEmail` | (Opcional) correo para notificaciones de facturación |
+
+El envío de correo usa la API HTTPS de Resend, no SMTP. Railway Hobby/Free
+bloquea conexiones SMTP salientes. Crea una clave API en Resend y verifica el
+dominio del remitente para enviar a otros destinatarios; `onboarding@resend.dev`
+solo sirve para pruebas limitadas a la dirección asociada a Resend. Guarda la
+clave únicamente en las variables del servicio Railway y nunca en el frontend.
 
 No configures simultáneamente `ConnectionStrings__DefaultConnection` con una
 cadena SQL Server: esa variable prevalece sobre `DATABASE_URL`. No compartas

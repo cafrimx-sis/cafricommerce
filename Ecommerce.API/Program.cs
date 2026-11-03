@@ -27,8 +27,6 @@ if (string.IsNullOrWhiteSpace(connectionString))
 var jwtKey = builder.Configuration["Jwt:Key"];
 var paypalClientId = builder.Configuration["PayPalSettings:ClientId"];
 var paypalClientSecret = builder.Configuration["PayPalSettings:ClientSecret"];
-var smtpPassword = builder.Configuration["EmailSettings:Password"];
-var smtpPort = builder.Configuration["EmailSettings:Port"];
 var paypalMode = builder.Configuration["PayPalSettings:Mode"];
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 
@@ -40,11 +38,10 @@ if (string.IsNullOrWhiteSpace(paypalClientId) || string.IsNullOrWhiteSpace(paypa
     throw new InvalidOperationException("PayPalSettings:ClientId and PayPalSettings:ClientSecret must be configured.");
 if (paypalMode is not ("Sandbox" or "Live"))
     throw new InvalidOperationException("PayPalSettings:Mode must be Sandbox or Live.");
-if (string.IsNullOrWhiteSpace(smtpPassword) ||
-    string.IsNullOrWhiteSpace(builder.Configuration["EmailSettings:Server"]) ||
+if (string.IsNullOrWhiteSpace(builder.Configuration["EmailSettings:ResendApiKey"]) ||
     string.IsNullOrWhiteSpace(builder.Configuration["EmailSettings:SenderEmail"]) ||
-    !int.TryParse(smtpPort, out _))
-    throw new InvalidOperationException("EmailSettings server, sender, port, and password must be configured.");
+    !builder.Configuration["EmailSettings:SenderEmail"]!.Contains('@'))
+    throw new InvalidOperationException("EmailSettings:ResendApiKey and a valid EmailSettings:SenderEmail must be configured.");
 if (string.IsNullOrWhiteSpace(builder.Configuration["Jwt:Issuer"]) ||
     string.IsNullOrWhiteSpace(builder.Configuration["Jwt:Audience"]))
     throw new InvalidOperationException("Jwt:Issuer and Jwt:Audience must be configured.");
@@ -69,6 +66,8 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient<ResendEmailSender>(client =>
+    client.BaseAddress = new Uri("https://api.resend.com/"));
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;

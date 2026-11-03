@@ -4,8 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Ecommerce.API.Data;
 using Ecommerce.API.Entities;
 using Ecommerce.API.DTOs;
-using System.Net.Mail;
-using System.Net;
+using Ecommerce.API.Services;
 
 namespace Ecommerce.API.Controllers
 {
@@ -15,11 +14,19 @@ namespace Ecommerce.API.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _configuration;
+        private readonly ILogger<FacturacionController> _logger;
+        private readonly ResendEmailSender _emailSender;
 
-        public FacturacionController(ApplicationDbContext context, IConfiguration configuration)
+        public FacturacionController(
+            ApplicationDbContext context,
+            IConfiguration configuration,
+            ILogger<FacturacionController> logger,
+            ResendEmailSender emailSender)
         {
             _context = context;
             _configuration = configuration;
+            _logger = logger;
+            _emailSender = emailSender;
         }
 
         // POST: api/facturacion/solicitar
@@ -53,11 +60,11 @@ namespace Ecommerce.API.Controllers
             // Notificación por correo (opcional)
             try
             {
-                EnviarCorreoNotificacion(solicitud);
+                await EnviarCorreoNotificacionAsync(solicitud, HttpContext.RequestAborted);
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Error al enviar correo de notificación: " + ex.Message);
+                _logger.LogError(ex, "Error al enviar correo de notificación de facturación {SolicitudId}.", solicitud.Id);
             }
 
             return Ok(new { mensaje = "Solicitud de factura registrada con éxito.", id = solicitud.Id });
@@ -94,27 +101,10 @@ namespace Ecommerce.API.Controllers
             return Ok(new { mensaje = "Estatus actualizado correctamente." });
         }
 
-        private void EnviarCorreoNotificacion(SolicitudFactura s)
+        private async Task EnviarCorreoNotificacionAsync(SolicitudFactura s, CancellationToken cancellationToken)
         {
-            var smtpServer = _configuration["Smtp:Server"] ?? "smtp.gmail.com";
-            var smtpPort = int.Parse(_configuration["Smtp:Port"] ?? "587");
-            var smtpUser = _configuration["Smtp:User"] ?? "";
-            var smtpPass = _configuration["Smtp:Pass"] ?? "";
-            var correoDestino = _configuration["Smtp:AccountingEmail"] ?? s.Correo;
-
-            if (string.IsNullOrEmpty(smtpUser) || string.IsNullOrEmpty(smtpPass)) return;
-
-            using var client = new SmtpClient(smtpServer, smtpPort)
-            {
-                Credentials = new NetworkCredential(smtpUser, smtpPass),
-                EnableSsl = true
-            };
-
-            var mailMessage = new MailMessage
-            {
-                From = new MailAddress(smtpUser, "CAFRI Facturación"),
-                Subject = $"Nueva Solicitud de Factura - RFC: {s.Rfc} - Ticket: {s.NumeroOrdenOid}",
-                Body = $"Se ha recibido una nueva solicitud de CFDI 4.0:\n\n" +
+            var correoDestino = _configuration["EmailSettings:AccountingEmail"] ?? s.Correo;
+            var textoCorreo = $"Se ha recibido una nueva solicitud de CFDI 4.0:\n\n" +
                        $"• Folio / Ticket: {s.NumeroOrdenOid}\n" +
                        $"• Fecha Ticket: {s.FechaTicket}\n" +
                        $"• Importe: ${s.Importe:N2} MXN\n" +
@@ -127,12 +117,13 @@ namespace Ecommerce.API.Controllers
                        $"• Correo: {s.Correo}\n" +
                        $"• Celular: {s.Celular}\n" +
                        (!string.IsNullOrEmpty(s.Observaciones) ? $"• Observaciones: {s.Observaciones}\n" : "") +
-                       $"\nPuedes revisar y gestionar esta solicitud desde el panel de administración.",
-                IsBodyHtml = false
-            };
+                       $"\nPuedes revisar y gestionar esta solicitud desde el panel de administración.";
 
-            mailMessage.To.Add(correoDestino);
-            client.Send(mailMessage);
+            await _emailSender.SendAsync(
+                correoDestino,
+                $"Nueva Solicitud de Factura - RFC: {s.Rfc} - Ticket: {s.NumeroOrdenOid}",
+                textoCorreo,
+                cancellationToken: cancellationToken);
         }
     }
 }

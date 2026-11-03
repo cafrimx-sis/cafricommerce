@@ -5,13 +5,13 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using System.Net;
-using System.Net.Mail;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Security.Cryptography;
 using Ecommerce.API.Data;
 using Ecommerce.API.Entities;
 using Ecommerce.API.DTOs;
+using Ecommerce.API.Services;
 
 namespace Ecommerce.API.Controllers
 {
@@ -22,12 +22,18 @@ namespace Ecommerce.API.Controllers
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _config;
         private readonly ILogger<AuthController> _logger;
+        private readonly ResendEmailSender _emailSender;
 
-        public AuthController(ApplicationDbContext context, IConfiguration config, ILogger<AuthController> logger)
+        public AuthController(
+            ApplicationDbContext context,
+            IConfiguration config,
+            ILogger<AuthController> logger,
+            ResendEmailSender emailSender)
         {
             _context = context;
             _config = config;
             _logger = logger;
+            _emailSender = emailSender;
         }
 
         [HttpPost("registrar")]
@@ -66,11 +72,6 @@ namespace Ecommerce.API.Controllers
 
             try
             {
-                var smtpHost = _config["EmailSettings:Server"] ?? "smtp.gmail.com";
-                var smtpPort = int.Parse(_config["EmailSettings:Port"] ?? "587");
-                var senderEmail = _config["EmailSettings:SenderEmail"] ?? "cafrimx@gmail.com";
-                var senderName = _config["EmailSettings:SenderName"] ?? "Ecommerce HVACR";
-                var password = _config["EmailSettings:Password"] ?? "";
                 var nombreUsuario = WebUtility.HtmlEncode(nuevoUsuario.Nombre);
                 var htmlCorreo = $"""
                     <!doctype html>
@@ -122,36 +123,20 @@ namespace Ecommerce.API.Controllers
                     </html>
                     """;
 
-                var mensaje = new MailMessage
-                {
-                    From = new MailAddress(senderEmail, senderName),
-                    Subject = "Código de verificación de tu cuenta - CAFRI",
-                    Body = $"CAFRI E-commerce\n\nHola{(string.IsNullOrWhiteSpace(nuevoUsuario.Nombre) ? "" : $" {nuevoUsuario.Nombre}")},\n\nTu código de verificación es: {randomCode}\n\nEl código vence en 15 minutos. No lo compartas con nadie. Si no solicitaste esta cuenta, ignora este mensaje.",
-                    IsBodyHtml = false
-                };
-                mensaje.AlternateViews.Add(AlternateView.CreateAlternateViewFromString(
-                    mensaje.Body, Encoding.UTF8, "text/plain"));
-
-                var logoStream = typeof(AuthController).Assembly.GetManifestResourceStream(
+                await using var logoStream = typeof(AuthController).Assembly.GetManifestResourceStream(
                     "Ecommerce.API.EmailAssets.logo.png")
                     ?? throw new InvalidOperationException("No se encontró el logo embebido para el correo de verificación.");
-                var vistaHtml = AlternateView.CreateAlternateViewFromString(
-                    htmlCorreo, Encoding.UTF8, "text/html");
-                vistaHtml.LinkedResources.Add(new LinkedResource(logoStream, "image/png")
-                {
-                    ContentId = "cafri-logo",
-                    TransferEncoding = System.Net.Mime.TransferEncoding.Base64
-                });
-                mensaje.AlternateViews.Add(vistaHtml);
-                mensaje.To.Add(nuevoUsuario.Email);
+                using var logoBuffer = new MemoryStream();
+                await logoStream.CopyToAsync(logoBuffer, HttpContext.RequestAborted);
 
-                using var clienteSmtp = new SmtpClient(smtpHost, smtpPort)
-                {
-                    Credentials = new NetworkCredential(senderEmail, password),
-                    EnableSsl = true
-                };
-
-                await clienteSmtp.SendMailAsync(mensaje);
+                var textoCorreo = $"CAFRI E-commerce\n\nHola{(string.IsNullOrWhiteSpace(nuevoUsuario.Nombre) ? "" : $" {nuevoUsuario.Nombre}")},\n\nTu código de verificación es: {randomCode}\n\nEl código vence en 15 minutos. No lo compartas con nadie. Si no solicitaste esta cuenta, ignora este mensaje.";
+                await _emailSender.SendAsync(
+                    nuevoUsuario.Email,
+                    "Código de verificación de tu cuenta - CAFRI",
+                    textoCorreo,
+                    htmlCorreo,
+                    logoBuffer.ToArray(),
+                    HttpContext.RequestAborted);
             }
             catch (Exception ex)
             {
@@ -271,39 +256,25 @@ namespace Ecommerce.API.Controllers
 
             try
             {
-                var smtpHost = _config["EmailSettings:Server"] ?? "smtp.gmail.com";
-                var smtpPort = int.Parse(_config["EmailSettings:Port"] ?? "587");
-                var senderEmail = _config["EmailSettings:SenderEmail"] ?? "cafrimx@gmail.com";
-                var senderName = _config["EmailSettings:SenderName"] ?? "CAFRI E-commerce";
-                var password = _config["EmailSettings:Password"] ?? "";
-
                 var frontendBaseUrl = _config["Frontend:BaseUrl"]?.TrimEnd('/');
                 if (string.IsNullOrWhiteSpace(frontendBaseUrl))
                     throw new InvalidOperationException("Frontend:BaseUrl must be configured.");
                 var enlaceRestablecer = $"{frontendBaseUrl}/restablecer-password?email={Uri.EscapeDataString(usuario.Email)}&token={Uri.EscapeDataString(tokenRecuperacion)}";
 
-                var mensaje = new MailMessage
-                {
-                    From = new MailAddress(senderEmail, senderName),
-                    Subject = "Recuperación de contraseña - CAFRI",
-                    Body = $@"
+                var htmlCorreo = $@"
                         <h3>Recuperación de Contraseña</h3>
                         <p>Has solicitado restablecer tu contraseña en CAFRI E-commerce.</p>
                         <p>Haz clic en el siguiente enlace para continuar:</p>
                         <a href='{enlaceRestablecer}' style='padding: 10px 15px; background-color: #1a365d; color: white; text-decoration: none; border-radius: 5px; display: inline-block;'>Restablecer Contraseña</a>
                         <p>O copia y pega este token si se requiere: <b style='font-family: monospace;'>{tokenRecuperacion}</b></p>
-                        <p>Este enlace expirará en 1 hora.</p>",
-                    IsBodyHtml = true
-                };
-                mensaje.To.Add(usuario.Email);
-
-                using var clienteSmtp = new SmtpClient(smtpHost, smtpPort)
-                {
-                    Credentials = new NetworkCredential(senderEmail, password),
-                    EnableSsl = true
-                };
-
-                await clienteSmtp.SendMailAsync(mensaje);
+                        <p>Este enlace expirará en 1 hora.</p>";
+                var textoCorreo = $"Has solicitado restablecer tu contraseña en CAFRI E-commerce.\n\nAbre este enlace para continuar: {enlaceRestablecer}\n\nEste enlace expirará en 1 hora.";
+                await _emailSender.SendAsync(
+                    usuario.Email,
+                    "Recuperación de contraseña - CAFRI",
+                    textoCorreo,
+                    htmlCorreo,
+                    cancellationToken: HttpContext.RequestAborted);
             }
             catch (Exception ex)
             {
