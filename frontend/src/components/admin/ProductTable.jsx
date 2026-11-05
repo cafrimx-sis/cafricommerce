@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import api from "../../lib/api"; 
+import { getCustomerProductPrice } from '../../lib/productPricing';
+import { convertPriceFromMXN, formatProductPrice, getProductCurrency } from '../../lib/productCurrency';
 
 const MAX_BULK_OFFER_PRODUCTS = 500;
 
@@ -332,8 +334,15 @@ export default function ProductTable({ products = [], loading, error, onEdit, on
                 const nombreProd = item.nombre || item.name || 'Equipo sin nombre';
                 const descProd = item.descripcion || item.description || '';
                 const marcaProd = item.brand || item.Marca?.nombre || '';
-                const precioProd = Number(item.precioPublico || item.price || 0);
-                const precioLista = Number(item.originalPrice ?? item.precioPublico ?? item.price ?? 0);
+                const monedaProducto = getProductCurrency(item);
+                const precioProd = convertPriceFromMXN(
+                  getCustomerProductPrice(item, item.price ?? item.originalPrice ?? 0),
+                  monedaProducto
+                );
+                const precioLista = convertPriceFromMXN(
+                  getCustomerProductPrice(item, item.originalPrice ?? item.price ?? 0),
+                  monedaProducto
+                );
                 const idSeleccionado = item.productoId || item.id || item.ProductoId;
                 const stockDisponible = item.stock ?? 0;
 
@@ -367,8 +376,9 @@ export default function ProductTable({ products = [], loading, error, onEdit, on
                     </td>
                     <td style={{ padding: '14px', fontWeight: '500', color: '#2d3748', whiteSpace: 'nowrap' }}>
                       {item.offerActive ? (
-                        <><span style={{ display: 'block', color: '#8293a0', textDecoration: 'line-through' }}>${precioLista.toLocaleString()} MXN</span><strong style={{ color: '#c24135' }}>${precioProd.toLocaleString()} MXN</strong><small style={{ display: 'block', color: '#c24135' }}>-{item.discountPercentage}% oferta</small></>
-                      ) : `$${precioLista.toLocaleString()} MXN`}
+                        <><span style={{ display: 'block', color: '#8293a0', textDecoration: 'line-through' }}>{formatProductPrice(precioLista, monedaProducto)}</span><strong style={{ color: '#c24135' }}>{formatProductPrice(precioProd, monedaProducto)}</strong><small style={{ display: 'block', color: '#c24135' }}>-{item.discountPercentage}% oferta</small></>
+                      ) : formatProductPrice(precioLista, monedaProducto)}
+                      {item.aplicaIva && <small style={{ display: 'block', color: '#64748b' }}>IVA 16% incluido</small>}
                     </td>
                     <td style={{ padding: '14px', color: stockDisponible > 0 ? '#38a169' : '#e53e3e', fontWeight: 'bold' }}>
                       {stockDisponible}

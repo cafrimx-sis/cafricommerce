@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../lib/api'; 
-import loginImage from '../assets/login.jpg';
+import './Login.css';
 
 export default function Registro() {
   const navigate = useNavigate();
@@ -77,9 +77,14 @@ export default function Registro() {
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
 
-      {/* Columna Izquierda: Imagen */}
-      <div style={{ flex: 1.2, height: '100%', position: 'relative', backgroundColor: '#1a365d' }}>
-        <img src={loginImage} alt="Background" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.9 }} />
+      {/* Columna Izquierda: Identidad visual compartida con el inicio de sesión */}
+      <div className="login-image-side" aria-label="Identidad visual CAFRI para equipos HVACR">
+        <div className="login-orbit" aria-hidden="true">❄</div>
+        <div className="login-visual-copy">
+          <span>Confort · Control · Confianza</span>
+          <h2>Soluciones para cada clima.</h2>
+          <p>Encuentra equipos y componentes HVACR para tus proyectos, con una experiencia de compra sencilla y clara.</p>
+        </div>
       </div>
 
       {/* Columna Derecha: Formulario */}

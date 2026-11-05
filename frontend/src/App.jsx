@@ -39,7 +39,8 @@ function App() {
   }, [cart]);
 
   const handleLogout = () => {
-    localStorage.clear();
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setUser(null);
     setCart([]);
     setIsNavOpen(false);
@@ -112,12 +113,10 @@ function App() {
         }
 
         .app-brand img {
-          position: absolute;
-          top: -68px;
-          left: 0;
           display: block;
-          width: 170px;
-          height: 170px;
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
         }
 
         .app-nav {
@@ -135,6 +134,13 @@ function App() {
           display: flex;
           align-items: center;
           gap: 6px;
+          white-space: nowrap;
+        }
+
+        .exchange-rate-note {
+          color: #315a70;
+          font-size: 0.68rem;
+          font-weight: 600;
           white-space: nowrap;
         }
 
@@ -234,6 +240,11 @@ function App() {
             padding: 11px 18px;
           }
 
+          .exchange-rate-note {
+            text-align: center;
+            white-space: normal;
+          }
+
           .nav-toggle-btn {
             display: block;
           }
@@ -280,9 +291,8 @@ function App() {
             height: 56px;
           }
           .app-brand img {
-            top: -59px;
-            width: 148px;
-            height: 148px;
+            width: 100%;
+            height: 100%;
           }
         }
       `}</style>
@@ -302,6 +312,9 @@ function App() {
         </button>
 
         <nav className={`app-nav ${isNavOpen ? 'open' : ''}`}>
+          <span className="exchange-rate-note" title="Tipo de cambio de referencia para convertir precios de productos">
+            Referencia: 1 USD = 18.59 MXN · 5/11/2026
+          </span>
           <Link to="/" className="nav-link" onClick={() => setIsNavOpen(false)}>
             Catálogo
           </Link>

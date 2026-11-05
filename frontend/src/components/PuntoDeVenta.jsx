@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
+import { getPosVat } from '../lib/productPricing';
 
 export default function PuntoDeVenta() {
   const [productos, setProductos] = useState([]);
@@ -77,6 +78,7 @@ export default function PuntoDeVenta() {
           productoId: idClave,
           nombre: nombreProd,
           precioUnitario: precioProd,
+          aplicaIva: Boolean(prod.aplicaIva),
           cantidad: 1,
           stockMax: stockMax,
           imagenUrl: imagenProd
@@ -110,13 +112,15 @@ export default function PuntoDeVenta() {
   const calcularDescuentoMonto = () => {
     const subtotal = calcularSubtotal();
     const porcentaje = Number(descuentoPorcentaje) || 0;
-    return (subtotal * porcentaje) / 100;
+    return Math.round((subtotal * porcentaje / 100 + Number.EPSILON) * 100) / 100;
   };
+
+  const calcularIva = () => getPosVat(carritoPos, descuentoPorcentaje);
 
   const calcularTotalFinal = () => {
     const subtotal = calcularSubtotal();
     const descuento = calcularDescuentoMonto();
-    return Math.max(0, subtotal - descuento);
+    return Math.max(0, subtotal - descuento + calcularIva());
   };
 
   const procesarCobro = async () => {
@@ -159,8 +163,9 @@ export default function PuntoDeVenta() {
         cliente: clienteActual,
         metodoPago: metodoPagoActual,
         items: itemsCopia,
-        subtotal: subtotalCalc,
-        descuento: subtotalCalc - totalAutorizado,
+        subtotal: Number(response.data.subtotal) || subtotalCalc,
+        descuento: Number(response.data.descuento) || 0,
+        iva: Number(response.data.iva) || 0,
         total: totalAutorizado
       });
 
@@ -232,6 +237,7 @@ export default function PuntoDeVenta() {
                     <span style={{ fontSize: '16px', fontWeight: '700', color: '#1e40af' }}>
                       ${precioProd.toLocaleString()} MXN
                     </span>
+                    {prod.aplicaIva && <span style={{ fontSize: '10px', color: '#6b7280' }}>+ IVA 16%</span>}
                     <button style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
                       + Agregar
                     </button>
@@ -267,7 +273,9 @@ export default function PuntoDeVenta() {
               <div key={item.productoId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', backgroundColor: '#f9fafb', padding: '8px 10px', borderRadius: '8px' }}>
                 <div style={{ flex: 1, marginRight: '8px' }}>
                   <div style={{ fontSize: '13px', fontWeight: '600', color: '#1f2937' }}>{item.nombre}</div>
-                  <div style={{ fontSize: '12px', color: '#6b7280' }}>${item.precioUnitario.toLocaleString()} c/u</div>
+                  <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                    ${item.precioUnitario.toLocaleString()} c/u{item.aplicaIva ? ' + IVA' : ''}
+                  </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <button onClick={() => cambiarCantidad(item.productoId, -1)} style={{ padding: '2px 8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>-</button>
@@ -316,6 +324,12 @@ export default function PuntoDeVenta() {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', color: '#059669', fontWeight: '600' }}>
               <span>Descuento ({descuentoPorcentaje}%):</span>
               <span>-${calcularDescuentoMonto().toLocaleString()} MXN</span>
+            </div>
+          )}
+          {calcularIva() > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <span>IVA:</span>
+              <span>${calcularIva().toLocaleString()} MXN</span>
             </div>
           )}
         </div>
@@ -393,6 +407,12 @@ export default function PuntoDeVenta() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', color: '#38a169' }}>
                   <span>Descuento aplicado:</span>
                   <span>-${ticketCompletado.descuento.toLocaleString()}</span>
+                </div>
+              )}
+              {ticketCompletado.iva > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span>IVA:</span>
+                  <span>${ticketCompletado.iva.toLocaleString()} MXN</span>
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 'bold', borderTop: '1px dashed #cbd5e0', paddingTop: '8px', marginTop: '4px', color: '#1a202c' }}>

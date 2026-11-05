@@ -396,6 +396,7 @@ namespace Ecommerce.API.Controllers
                 decimal costoFlete = zona?.CostoFlete ?? 450.00m;
 
                 decimal subtotal = 0;
+                decimal iva = 0;
                 var detallesOrden = new List<OrdenDetalle>();
 
                 foreach (var item in solicitud.Items)
@@ -411,6 +412,7 @@ namespace Ecommerce.API.Controllers
                     producto.Stock -= item.Cantidad;
 
                     subtotal += producto.PrecioPublico * item.Cantidad;
+                    iva += PrecioProducto.ObtenerIva(producto.PrecioPublico, producto) * item.Cantidad;
                     detallesOrden.Add(new OrdenDetalle
                     {
                         ProductoId = producto.ProductoId,
@@ -420,7 +422,8 @@ namespace Ecommerce.API.Controllers
                     });
                 }
 
-                decimal iva = subtotal * 0.16m;
+                subtotal = decimal.Round(subtotal, 2, MidpointRounding.AwayFromZero);
+                iva = decimal.Round(iva, 2, MidpointRounding.AwayFromZero);
                 decimal totalDefinitivo = subtotal + iva + costoFlete;
 
                 var nuevaOrden = new Orden

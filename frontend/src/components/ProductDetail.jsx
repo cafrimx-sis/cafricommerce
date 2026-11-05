@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
-import { getCurrentProductPricing } from '../lib/productPricing';
+import { getCurrentProductPricing, getCustomerProductPrice } from '../lib/productPricing';
+import { convertPriceFromMXN, formatProductPrice, getProductCurrency } from '../lib/productCurrency';
 
 export default function ProductDetail({ onAddToCart }) {
   const { id } = useParams();
@@ -54,6 +55,9 @@ export default function ProductDetail({ onAddToCart }) {
   const nombreProd = product.nombre || product.name || 'Equipo sin nombre';
   const pricing = getCurrentProductPricing(product);
   const precioProd = pricing.price;
+  const monedaProducto = getProductCurrency(product);
+  const precioCliente = getCustomerProductPrice(product, precioProd);
+  const precioOriginalCliente = getCustomerProductPrice(product, pricing.originalPrice);
   const rutaRaw = product.image || product.imageUrl || product.imagenUrl || '';
   const stockDisponible = product.stock ?? 0;
   const descripcionProd = product.descripcion || product.description || 'Sin descripción detallada para este equipo.';
@@ -387,14 +391,15 @@ export default function ProductDetail({ onAddToCart }) {
             {pricing.offerActive ? (
               <>
                 <span style={{ display: 'block', color: '#8293a0', fontSize: '1rem', textDecoration: 'line-through' }}>
-                  ${pricing.originalPrice.toLocaleString()} MXN
+                  {formatProductPrice(convertPriceFromMXN(precioOriginalCliente, monedaProducto), monedaProducto)}
                 </span>
-                <strong style={{ color: '#c24135' }}>${precioProd.toLocaleString()}</strong>
-                <span style={{ color: '#c24135' }}> MXN · {pricing.discountPercentage}% de descuento</span>
+                <strong style={{ color: '#c24135' }}>{formatProductPrice(convertPriceFromMXN(precioCliente, monedaProducto), monedaProducto)}</strong>
+                <span style={{ color: '#c24135' }}> {monedaProducto} · {pricing.discountPercentage}% de descuento</span>
               </>
             ) : (
-              <>${precioProd.toLocaleString()} <span>MXN</span></>
+              <>{formatProductPrice(convertPriceFromMXN(precioCliente, monedaProducto), monedaProducto)}</>
             )}
+            {product.aplicaIva && <span style={{ display: 'block', color: '#64748b', fontSize: '0.85rem', letterSpacing: 0 }}>IVA 16% incluido</span>}
           </div>
 
           <div className="product-stock">

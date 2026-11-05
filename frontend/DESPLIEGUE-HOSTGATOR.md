@@ -46,12 +46,29 @@ En cPanel, activa y verifica SSL para el dominio. Configura también el backend
 para permitir en CORS el origen HTTPS exacto del frontend, por ejemplo
 `https://www.tudominio.com`, sin ruta ni comodín.
 
+## Moneda e IVA por producto
+
+Cada producto se captura y se muestra en su moneda (MXN o USD). Para calcular
+órdenes y cargos PayPal, los precios USD se convierten a MXN con la referencia
+fija `1 USD = 18.59 MXN` (`5/11/2026`). El precio guardado en la base de datos
+se normaliza a MXN y conserva la moneda de presentación del producto.
+
+Al marcar **Aplicar IVA del 16%**, el precio capturado se considera antes de
+IVA. La tienda lo suma al precio mostrado y la API calcula el impuesto en las
+compras y en el Punto de Venta; allí el descuento se aplica antes de calcular
+el IVA. Los productos existentes conservan moneda MXN y quedan sin IVA por
+defecto. La tasa de referencia es fija y debe actualizarse en frontend y API
+cuando el negocio decida cambiarla.
+
 ## Verificación
 
 1. Abre el dominio y confirma que carga el catálogo sin errores.
 2. Navega a una ruta interna y recarga; no debe responder 404 de Apache.
 3. Confirma en la consola de red que las peticiones van a la API HTTPS correcta.
-4. Verifica registro, correo, inicio de sesión y flujos de compra usando PayPal
+4. Comprueba precios en MXN y USD, productos con y sin IVA, carrito mixto,
+   Punto de Venta con descuento e IVA, y que PayPal reciba siempre el total
+   convertido a MXN.
+5. Verifica registro, correo, inicio de sesión y flujos de compra usando PayPal
    Sandbox hasta que el backend, su base PostgreSQL y los datos transferidos, almacenamiento de imágenes,
    correo y webhook estén configurados.
 

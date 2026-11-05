@@ -2,7 +2,8 @@ export default function ProductModal({
   isOpen, isEditing, onClose, onSubmit,
   sku, setSku, nombre, setNombre, 
   descripcion, setDescripcion,
-  precioPublico, setPrecioPublico, stock, setStock,
+  precioPublico, setPrecioPublico, monedaPrecio, setMonedaPrecio, aplicaIva, setAplicaIva,
+  stock, setStock,
   descuentoOferta, setDescuentoOferta, ofertaInicio, setOfertaInicio,
   ofertaFin, setOfertaFin,
   esDestacado, setEsDestacado, destacadoInicio, setDestacadoInicio,
@@ -177,14 +178,34 @@ export default function ProductModal({
 
           <div className="modal-row-2col" style={{ marginBottom: '15px' }}>
             <div style={{ flex: 1, marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px', color: '#4a5568' }}>Precio Lista ($)</label>
-              <input type="number" step="0.01" required value={precioPublico} onChange={(e) => setPrecioPublico(e.target.value)} style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e0', borderRadius: '5px', boxSizing: 'border-box', fontSize: '14px' }} placeholder="0.00" />
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px', color: '#4a5568' }}>Precio de lista ({monedaPrecio})</label>
+              <input type="number" min="0.01" step="0.01" required value={precioPublico} onChange={(e) => setPrecioPublico(e.target.value)} style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e0', borderRadius: '5px', boxSizing: 'border-box', fontSize: '14px' }} placeholder="0.00" />
+              <select
+                aria-label="Moneda del precio del producto"
+                value={monedaPrecio}
+                onChange={(e) => setMonedaPrecio(e.target.value)}
+                style={{ width: '100%', marginTop: '7px', padding: '9px', border: '1px solid #cbd5e0', borderRadius: '5px', background: '#fff' }}
+              >
+                <option value="MXN">Peso mexicano (MXN)</option>
+                <option value="USD">Dólar estadounidense (USD)</option>
+              </select>
+              <small style={{ display: 'block', marginTop: '6px', color: '#64748b', lineHeight: 1.4 }}>
+                Referencia fija: 1 USD = 18.59 MXN · 5/11/2026
+              </small>
             </div>
             <div style={{ flex: 1, marginBottom: '15px' }}>
               <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px', color: '#4a5568' }}>Unidades Stock</label>
               <input type="number" required value={stock} onChange={(e) => setStock(e.target.value)} style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e0', borderRadius: '5px', boxSizing: 'border-box', fontSize: '14px' }} placeholder="0" />
             </div>
           </div>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: '9px', marginBottom: '15px', padding: '12px', border: '1px solid #bee3f8', borderRadius: '8px', background: '#f0f9ff', color: '#2c5282', fontWeight: 'bold', cursor: 'pointer' }}>
+            <input type="checkbox" checked={aplicaIva} onChange={(e) => setAplicaIva(e.target.checked)} />
+            Aplicar IVA del 16% al precio en tienda y al pago
+          </label>
+          <small style={{ display: 'block', margin: '-8px 0 15px', color: '#64748b', lineHeight: 1.4 }}>
+            Captura el precio antes de IVA. Si marcas la casilla, el 16% se agrega al precio que ve y paga el cliente.
+          </small>
 
           <div style={{ marginBottom: '15px', padding: '14px', border: '1px solid #bee3f8', borderRadius: '8px', background: '#f0f9ff' }}>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '14px', color: '#2c5282' }}>Oferta para tienda en línea</label>

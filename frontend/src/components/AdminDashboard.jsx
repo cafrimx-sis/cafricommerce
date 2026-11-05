@@ -10,6 +10,7 @@ import BrandManager from './admin/BrandManager';
 import CorteDeCaja from './CorteDeCaja';
 import AdminFacturacion from './AdminFacturacion'; // 📄 Importación del panel de facturación
 import AdminOrders from './admin/AdminOrders';
+import { convertPriceFromMXN, convertPriceToMXN } from '../lib/productCurrency';
 
 export default function AdminDashboard() {
   const [adminView, setAdminView] = useState('overview');
@@ -27,6 +28,8 @@ export default function AdminDashboard() {
   const [nombre, setNombre] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [precioPublico, setPrecioPublico] = useState('');
+  const [monedaPrecio, setMonedaPrecio] = useState('MXN');
+  const [aplicaIva, setAplicaIva] = useState(false);
   const [descuentoOferta, setDescuentoOferta] = useState('0');
   const [ofertaInicio, setOfertaInicio] = useState('');
   const [ofertaFin, setOfertaFin] = useState('');
@@ -160,6 +163,8 @@ export default function AdminDashboard() {
     formData.append("Sku", sku);
     formData.append("Name", nombre);
     formData.append("Price", parseFloat(precioPublico) || 0);
+    formData.append("Currency", monedaPrecio);
+    formData.append("AplicaIva", String(aplicaIva));
     formData.append("DescuentoPorcentaje", parseFloat(descuentoOferta) || 0);
     if (Number(descuentoOferta) > 0) {
       formData.append("OfertaInicioUtc", new Date(ofertaInicio).toISOString());
@@ -234,7 +239,12 @@ export default function AdminDashboard() {
     setSku(item.sku || item.SKU || '');
     setNombre(item.nombre || item.name || '');
     setDescripcion(item.description || item.descripcion || '');
-    setPrecioPublico(item.originalPrice ?? item.precioPublico ?? item.price ?? '');
+    const moneda = item.currency === 'USD' ? 'USD' : 'MXN';
+    setMonedaPrecio(moneda);
+    setPrecioPublico(
+      convertPriceFromMXN(item.originalPrice ?? item.precioPublico ?? item.price ?? 0, moneda).toFixed(2)
+    );
+    setAplicaIva(Boolean(item.aplicaIva));
     setDescuentoOferta(String(item.discountPercentage ?? 0));
     setOfertaInicio(toDateTimeLocal(item.offerStartUtc));
     setOfertaFin(toDateTimeLocal(item.offerEndUtc));
@@ -252,6 +262,7 @@ export default function AdminDashboard() {
   const cerrarYLimpiarModal = () => {
     setIsModalOpen(false); setIsEditing(false); setSelectedId(null);
     setSku(''); setNombre(''); setDescripcion(''); setPrecioPublico(''); setStock('');
+    setMonedaPrecio('MXN'); setAplicaIva(false);
     setDescuentoOferta('0'); setOfertaInicio(''); setOfertaFin('');
     setEsDestacado(false); setDestacadoInicio(''); setDestacadoFin('');
     setCategoriaId(''); setSubCategoriaId(''); setMainMarcaId(''); setFotoArchivo(null);
@@ -315,6 +326,17 @@ export default function AdminDashboard() {
         nombre={nombre} setNombre={setNombre} 
         descripcion={descripcion} setDescripcion={setDescripcion}
         precioPublico={precioPublico} setPrecioPublico={setPrecioPublico} 
+        monedaPrecio={monedaPrecio}
+        setMonedaPrecio={(nextCurrency) => {
+          if (nextCurrency !== 'MXN' && nextCurrency !== 'USD') return;
+          const currentAmount = Number(precioPublico);
+          if (Number.isFinite(currentAmount) && currentAmount > 0) {
+            const priceInMxn = convertPriceToMXN(currentAmount, monedaPrecio);
+            setPrecioPublico(convertPriceFromMXN(priceInMxn, nextCurrency).toFixed(2));
+          }
+          setMonedaPrecio(nextCurrency);
+        }}
+        aplicaIva={aplicaIva} setAplicaIva={setAplicaIva}
         descuentoOferta={descuentoOferta} setDescuentoOferta={setDescuentoOferta}
         ofertaInicio={ofertaInicio} setOfertaInicio={setOfertaInicio}
         ofertaFin={ofertaFin} setOfertaFin={setOfertaFin}

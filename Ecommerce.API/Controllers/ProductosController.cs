@@ -63,6 +63,8 @@ namespace Ecommerce.API.Controllers
         [Authorize(Roles = "Administrador")]
         public async Task<IActionResult> PostProducto([FromForm] ProductoDto dto, IFormFile? file)
         {
+            var errorPrecio = ValidarPrecio(dto);
+            if (errorPrecio != null) return BadRequest(new { mensaje = errorPrecio });
             var errorOferta = ValidarOferta(dto);
             if (errorOferta != null) return BadRequest(new { mensaje = errorOferta });
             var errorDestacado = ValidarDestacado(dto);
@@ -92,7 +94,9 @@ namespace Ecommerce.API.Controllers
             {
                 SKU = dto.Sku,
                 Nombre = dto.Name,
-                PrecioPublico = dto.Price,
+                PrecioPublico = PrecioProducto.ConvertirPrecioAMxn(dto.Price, dto.Currency),
+                MonedaPrecio = dto.Currency,
+                AplicaIva = dto.AplicaIva,
                 DescuentoPorcentaje = dto.DescuentoPorcentaje,
                 OfertaInicioUtc = dto.OfertaInicioUtc,
                 OfertaFinUtc = dto.OfertaFinUtc,
@@ -119,6 +123,8 @@ namespace Ecommerce.API.Controllers
         [Authorize(Roles = "Administrador")]
         public async Task<IActionResult> PutProducto(int id, [FromForm] ProductoDto dto, IFormFile? file)
         {
+            var errorPrecio = ValidarPrecio(dto);
+            if (errorPrecio != null) return BadRequest(new { mensaje = errorPrecio });
             var errorOferta = ValidarOferta(dto);
             if (errorOferta != null) return BadRequest(new { mensaje = errorOferta });
             var errorDestacado = ValidarDestacado(dto);
@@ -129,7 +135,9 @@ namespace Ecommerce.API.Controllers
 
             p.SKU = dto.Sku;
             p.Nombre = dto.Name;
-            p.PrecioPublico = dto.Price;
+            p.PrecioPublico = PrecioProducto.ConvertirPrecioAMxn(dto.Price, dto.Currency);
+            p.MonedaPrecio = dto.Currency;
+            p.AplicaIva = dto.AplicaIva;
             p.DescuentoPorcentaje = dto.DescuentoPorcentaje;
             p.OfertaInicioUtc = dto.OfertaInicioUtc;
             p.OfertaFinUtc = dto.OfertaFinUtc;
@@ -244,6 +252,21 @@ namespace Ecommerce.API.Controllers
             return null;
         }
 
+        private static string? ValidarPrecio(ProductoDto dto)
+        {
+            if (dto.Price <= 0)
+                return "El precio debe ser mayor a cero.";
+            if (dto.Currency is not ("MXN" or "USD"))
+                return "La moneda del producto debe ser MXN o USD.";
+            const decimal maxPriceMxn = 9999999999999999.99m;
+            var maxInputPrice = dto.Currency == "USD"
+                ? maxPriceMxn / PrecioProducto.TipoCambioUsdAMxn
+                : maxPriceMxn;
+            if (dto.Price > maxInputPrice)
+                return "El precio convertido supera el importe máximo permitido.";
+            return null;
+        }
+
         private static string? ValidarDestacado(ProductoDto dto)
         {
             if (!dto.EsDestacado)
@@ -275,6 +298,8 @@ namespace Ecommerce.API.Controllers
                 subCategory = p.SubCategoria?.Nombre ?? "N/A",
                 mainMarcaId = p.MainMarcaId,
                 brand = p.Marca?.Nombre ?? "N/A",
+                currency = p.MonedaPrecio,
+                aplicaIva = p.AplicaIva,
                 price = PrecioProducto.ObtenerPrecioActual(p, ahoraUtc),
                 originalPrice = p.PrecioPublico,
                 discountPercentage = p.DescuentoPorcentaje,

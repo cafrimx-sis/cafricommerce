@@ -107,7 +107,8 @@ public class PayPalController : ControllerBase
                 return NotFound(new { mensaje = "La dirección no existe o no pertenece al usuario autenticado." });
             }
 
-            decimal calculatedTotal = 0;
+            decimal subtotal = 0;
+            decimal iva = 0;
             var detallesList = new List<OrdenDetalle>();
             var groupedItems = checkout.Items.GroupBy(item => item.ProductoId).Select(group => new
             {
@@ -140,7 +141,8 @@ public class PayPalController : ControllerBase
                     return BadRequest(new { mensaje = $"El precio del producto {productoDb.Nombre} no es válido." });
                 }
 
-                calculatedTotal += precioActual * item.Cantidad;
+                subtotal += precioActual * item.Cantidad;
+                iva += PrecioProducto.ObtenerIva(precioActual, productoDb) * item.Cantidad;
                 detallesList.Add(new OrdenDetalle
                 {
                     ProductoId = productoDb.ProductoId,
@@ -150,12 +152,14 @@ public class PayPalController : ControllerBase
                 });
             }
 
-            if (calculatedTotal <= 0)
+            if (subtotal <= 0)
             {
                 await transaction.RollbackAsync();
                 return BadRequest(new { mensaje = "La orden no contiene productos válidos o el total es cero." });
             }
-            calculatedTotal = decimal.Round(calculatedTotal, 2, MidpointRounding.AwayFromZero);
+            subtotal = decimal.Round(subtotal, 2, MidpointRounding.AwayFromZero);
+            iva = decimal.Round(iva, 2, MidpointRounding.AwayFromZero);
+            var calculatedTotal = subtotal + iva;
 
             foreach (var item in groupedItems)
             {
@@ -211,8 +215,8 @@ public class PayPalController : ControllerBase
                 DireccionEnvioId = direccionEnvioId,
                 PayPalOrderId = paypalOrderId,
                 EstadoOrden = "Pendiente",
-                Subtotal = calculatedTotal,
-                Iva = 0,
+                Subtotal = subtotal,
+                Iva = iva,
                 CostoFlete = 0,
                 Total = calculatedTotal,
                 InventarioReservado = true,

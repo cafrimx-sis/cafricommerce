@@ -349,6 +349,11 @@ namespace Ecommerce.API.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("ProductoId"));
 
+                    b.Property<bool>("AplicaIva")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<int>("CategoriaId")
                         .HasColumnType("integer");
 
@@ -380,6 +385,13 @@ namespace Ecommerce.API.Migrations
                     b.Property<int>("MainMarcaId")
                         .HasColumnType("integer")
                         .HasColumnName("MainMarcadId");
+
+                    b.Property<string>("MonedaPrecio")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasDefaultValue("MXN");
 
                     b.Property<string>("Nombre")
                         .IsRequired()
@@ -419,7 +431,10 @@ namespace Ecommerce.API.Migrations
 
                     b.HasIndex("SubCategoriaId");
 
-                    b.ToTable("Productos");
+                    b.ToTable("Productos", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Productos_MonedaPrecio", "\"MonedaPrecio\" IN ('MXN', 'USD')");
+                        });
                 });
 
             modelBuilder.Entity("Ecommerce.API.Entities.SolicitudFactura", b =>
@@ -622,6 +637,12 @@ namespace Ecommerce.API.Migrations
 
                     b.Property<DateTime>("FechaCreacion")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("Iva")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
 
                     b.Property<string>("MetodoPago")
                         .IsRequired()

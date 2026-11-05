@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Ecommerce.API.Data;
 using Ecommerce.API.Entities;
 using Ecommerce.API.DTOs;
+using Ecommerce.API.Services;
 
 namespace Ecommerce.API.Controllers
 {
@@ -45,6 +46,7 @@ namespace Ecommerce.API.Controllers
                     ventaId = v.VentaId,
                     fechaCreacion = v.FechaCreacion,
                     total = v.Total,
+                    iva = v.Iva,
                     metodoPago = v.MetodoPago,
                     cliente = v.Cliente,
                     corteId = v.CorteId,
@@ -97,7 +99,10 @@ namespace Ecommerce.API.Controllers
                     return NotFound(new { mensaje = $"Producto con ID {faltante} no encontrado." });
                 }
 
+                var ahoraUtc = DateTime.UtcNow;
                 decimal subtotal = 0;
+                decimal iva = 0;
+                var factorDescuento = 1 - ventaDto.DescuentoPorcentaje / 100m;
                 foreach (var item in ventaDto.Items)
                 {
                     var producto = productos[item.ProductoId];
@@ -106,10 +111,17 @@ namespace Ecommerce.API.Controllers
                         await transaction.RollbackAsync();
                         return BadRequest(new { mensaje = $"El precio del producto {producto.Nombre} no es válido." });
                     }
-                    subtotal += producto.PrecioPublico * item.Cantidad;
+                    var precioActual = PrecioProducto.ObtenerPrecioActual(producto, ahoraUtc);
+                    var subtotalProducto = precioActual * item.Cantidad;
+                    subtotal += subtotalProducto;
+                    iva += PrecioProducto.ObtenerIva(
+                        subtotalProducto,
+                        producto,
+                        ventaDto.DescuentoPorcentaje);
                 }
 
-                var total = decimal.Round(subtotal * (1 - ventaDto.DescuentoPorcentaje / 100m), 2, MidpointRounding.AwayFromZero);
+                var descuento = decimal.Round(subtotal * (1 - factorDescuento), 2, MidpointRounding.AwayFromZero);
+                var total = decimal.Round(subtotal - descuento + iva, 2, MidpointRounding.AwayFromZero);
                 if (total <= 0)
                 {
                     await transaction.RollbackAsync();
@@ -120,6 +132,7 @@ namespace Ecommerce.API.Controllers
                 {
                     FechaCreacion = DateTime.UtcNow,
                     Total = total,
+                    Iva = iva,
                     MetodoPago = ventaDto.MetodoPago,
                     Cliente = string.IsNullOrWhiteSpace(ventaDto.Cliente) ? "Público General" : ventaDto.Cliente
                 };
@@ -144,7 +157,7 @@ namespace Ecommerce.API.Controllers
                         VentaId = nuevaVenta.VentaId,
                         ProductoId = item.ProductoId,
                         Cantidad = item.Cantidad,
-                        PrecioUnitario = producto.PrecioPublico
+                        PrecioUnitario = PrecioProducto.ObtenerPrecioActual(producto, ahoraUtc)
                     };
 
                     _context.Set<DetalleVenta>().Add(detalle);
@@ -153,7 +166,15 @@ namespace Ecommerce.API.Controllers
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                return Ok(new { mensaje = "Venta registrada con éxito", ventaId = nuevaVenta.VentaId, total });
+                return Ok(new
+                {
+                    mensaje = "Venta registrada con éxito",
+                    ventaId = nuevaVenta.VentaId,
+                    subtotal,
+                    descuento,
+                    iva,
+                    total
+                });
             }
             catch (Exception ex)
             {

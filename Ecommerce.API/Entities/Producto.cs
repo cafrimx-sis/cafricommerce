@@ -9,6 +9,8 @@ namespace Ecommerce.API.Entities
         public string Nombre { get; set; } = string.Empty;
         public string? Descripcion { get; set; }
         public decimal PrecioPublico { get; set; }
+        public string MonedaPrecio { get; set; } = "MXN";
+        public bool AplicaIva { get; set; }
         public decimal DescuentoPorcentaje { get; set; }
         public DateTime? OfertaInicioUtc { get; set; }
         public DateTime? OfertaFinUtc { get; set; }

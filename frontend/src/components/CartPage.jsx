@@ -2,13 +2,22 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import Cart from './Cart'; 
 import Checkout from './Checkout'; 
-import { getCurrentProductPricing } from '../lib/productPricing';
+import { getCurrentProductPricing, getCustomerProductPrice } from '../lib/productPricing';
+import { convertPriceFromMXN, convertPriceToMXN, formatProductPrice, getProductCurrency } from '../lib/productCurrency';
 
 export default function CartPage({ cart, setCart, removeFromCart, updateQuantity, user }) {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   const cartSafe = Array.isArray(cart) ? cart : [];
-  const total = cartSafe.reduce((acc, item) => acc + (getCurrentProductPricing(item).price * (Number(item.cantidad) || 1)), 0);
+  const total = cartSafe.reduce((acc, item) => {
+    const price = getCustomerProductPrice(item, getCurrentProductPricing(item).price);
+    const priceInMxn = convertPriceToMXN(price, getProductCurrency(item));
+    return acc + (priceInMxn * (Number(item.cantidad) || 1));
+  }, 0);
+  const displayTotal = cartSafe.length > 0 && cartSafe.every(item => getProductCurrency(item) === 'USD')
+    ? formatProductPrice(convertPriceFromMXN(total, 'USD'), 'USD')
+    : formatProductPrice(total, 'MXN');
+  const hasMixedCurrencies = new Set(cartSafe.map(getProductCurrency)).size > 1;
   const totalItems = cartSafe.reduce((acc, item) => acc + (Number(item.cantidad) || 1), 0);
   const hasStockIssues = cartSafe.some(item => {
     if (item.stock === null || item.stock === undefined || !Number.isFinite(Number(item.stock))) return false;
@@ -195,9 +204,14 @@ export default function CartPage({ cart, setCart, removeFromCart, updateQuantity
                   </div>
                   <div className="cart-summary-total">
                     <span>Total</span>
-                    <strong>${total.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN</strong>
+                    <strong>{displayTotal}</strong>
                   </div>
-                  <p className="cart-summary-note">El costo de envío y las opciones de pago se mostrarán en el siguiente paso.</p>
+                  <p className="cart-summary-note">
+                    {hasMixedCurrencies
+                      ? 'El carrito tiene artículos en distintas monedas; su total equivalente se presenta en MXN.'
+                      : 'El costo de envío se mostrará en el siguiente paso.'}
+                    {' '}PayPal procesa el pago en MXN.
+                  </p>
                   {hasStockIssues && (
                     <p className="cart-stock-warning">Ajusta las cantidades al inventario disponible para continuar.</p>
                   )}

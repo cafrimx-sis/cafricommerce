@@ -52,6 +52,17 @@ namespace Ecommerce.API.Data
                 .Property(p => p.PrecioPublico)
                 .HasPrecision(18, 2);
             modelBuilder.Entity<Producto>()
+                .Property(p => p.MonedaPrecio)
+                .HasMaxLength(3)
+                .HasDefaultValue("MXN");
+            modelBuilder.Entity<Producto>()
+                .Property(p => p.AplicaIva)
+                .HasDefaultValue(false);
+            modelBuilder.Entity<Producto>()
+                .ToTable("Productos", table => table.HasCheckConstraint(
+                    "CK_Productos_MonedaPrecio",
+                    "\"MonedaPrecio\" IN ('MXN', 'USD')"));
+            modelBuilder.Entity<Producto>()
                 .Property(p => p.DescuentoPorcentaje)
                 .HasPrecision(5, 2);
 
@@ -67,6 +78,10 @@ namespace Ecommerce.API.Data
             // Mapeo explícito para las tablas físicas de Ventas
             modelBuilder.Entity<Venta>().ToTable("VentasFisicas");
             modelBuilder.Entity<DetalleVenta>().ToTable("VentasFisicasDetalles");
+            modelBuilder.Entity<Venta>()
+                .Property(venta => venta.Iva)
+                .HasPrecision(18, 2)
+                .HasDefaultValue(0m);
 
             // Precisión monetaria para Pedidos y Detalles
             modelBuilder.Entity<Pedido>()

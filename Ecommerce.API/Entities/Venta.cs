@@ -17,6 +17,10 @@ namespace Ecommerce.API.Entities
         public decimal Total { get; set; }
 
         [Required]
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal Iva { get; set; }
+
+        [Required]
         [StringLength(50)]
         public string MetodoPago { get; set; } = "Efectivo";
 

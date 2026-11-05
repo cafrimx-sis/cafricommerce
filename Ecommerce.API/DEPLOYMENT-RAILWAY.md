@@ -68,6 +68,16 @@ que usa actualmente la API, incluidas las reservas de inventario PayPal. El
 historial anterior de SQL Server se conserva en
 `Migrations/SqlServerLegacy/` como referencia; no es ejecutable sobre PostgreSQL.
 
+Para añadir moneda por producto e IVA (incluido el Punto de Venta) a una base
+Railway ya creada, haz primero un respaldo de PostgreSQL y ejecuta una sola vez
+`Migrations/PostgreSql-ProductCurrencyVat.sql` en el Query Tool de pgAdmin,
+conectado a la base `railway`. Es un script idempotente que añade las columnas
+`MonedaPrecio` (MXN para los productos existentes) y `AplicaIva` (false para
+los productos existentes) y `Iva` en `VentasFisicas` (0 para las ventas
+existentes), además de registrar ambas migraciones. No vuelvas a ejecutar
+`PostgreSql-Initial.sql` sobre una base existente. Despliega la API actualizada
+solo después de aplicar esta migración.
+
 La base de SQL Server existente contiene datos importantes y no se ha leído,
 respaldado ni modificado desde este proyecto. La transferencia de datos todavía
 no se ha realizado. Antes de cambiar el tráfico:

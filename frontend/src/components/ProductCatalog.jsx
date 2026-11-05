@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
-import { getCurrentProductPricing } from '../lib/productPricing';
+import { getCurrentProductPricing, getCustomerProductPrice } from '../lib/productPricing';
+import { convertPriceFromMXN, formatProductPrice, getProductCurrency } from '../lib/productCurrency';
 
 export default function ProductCatalog({ onAddToCart, cart = [] }) {
   const navigate = useNavigate();
@@ -96,7 +97,7 @@ export default function ProductCatalog({ onAddToCart, cart = [] }) {
     const coincideBusqueda = nombreProducto.includes(textoBusqueda) || (skuProducto && skuProducto.includes(textoBusqueda));
 
     // Filtro por Rango de Precios
-    const precioProd = getCurrentProductPricing(p).price;
+    const precioProd = getCustomerProductPrice(p, getCurrentProductPricing(p).price);
     if (precioMin !== '' && !isNaN(precioMin)) {
       if (precioProd < Number(precioMin)) return false;
     }
@@ -155,19 +156,22 @@ export default function ProductCatalog({ onAddToCart, cart = [] }) {
         Number(b.featuredActive) - Number(a.featuredActive) ||
         b.pricing.discountPercentage - a.pricing.discountPercentage)
       .slice(0, 5)
-      .map(({ product, pricing, featuredActive }) => ({
-        type: featuredActive ? 'featured' : 'offer',
-        kicker: featuredActive
-          ? `Producto nuevo o destacado${pricing.offerActive ? ` · Oferta ${pricing.discountPercentage}%` : ''}`
-          : `Oferta vigente · ${pricing.discountPercentage}% de descuento`,
-        title: <>{product.nombre || product.name || 'Producto destacado'} <span>{featuredActive ? 'conoce esta novedad' : 'por tiempo limitado'}</span></>,
-        description: pricing.offerActive
-          ? `Antes $${pricing.originalPrice.toLocaleString()} MXN. Aprovecha el precio especial de $${pricing.price.toLocaleString()} MXN.`
-          : product.description || 'Descubre este producto nuevo que CAFRI seleccionó para ti.',
-        actionLabel: 'Ver producto',
-        imageUrl: getImageUrl(product.image || product.imageUrl || product.imagenUrl || ''),
-        onAction: () => navigate(`/producto/${product.productoId || product.id}`)
-      }))
+      .map(({ product, pricing, featuredActive }) => {
+        const currency = getProductCurrency(product);
+        return {
+          type: featuredActive ? 'featured' : 'offer',
+          kicker: featuredActive
+            ? `Producto nuevo o destacado${pricing.offerActive ? ` · Oferta ${pricing.discountPercentage}%` : ''}`
+            : `Oferta vigente · ${pricing.discountPercentage}% de descuento`,
+          title: <>{product.nombre || product.name || 'Producto destacado'} <span>{featuredActive ? 'conoce esta novedad' : 'por tiempo limitado'}</span></>,
+          description: pricing.offerActive
+            ? `Antes ${formatProductPrice(convertPriceFromMXN(getCustomerProductPrice(product, pricing.originalPrice), currency), currency)}. Aprovecha el precio especial de ${formatProductPrice(convertPriceFromMXN(getCustomerProductPrice(product, pricing.price), currency), currency)}${product.aplicaIva ? ' con IVA incluido' : ''}.`
+            : product.description || 'Descubre este producto nuevo que CAFRI seleccionó para ti.',
+          actionLabel: 'Ver producto',
+          imageUrl: getImageUrl(product.image || product.imageUrl || product.imagenUrl || ''),
+          onAction: () => navigate(`/producto/${product.productoId || product.id}`)
+        };
+      })
   ];
   const activePromoIndex = currentPromoIndex % promoSlides.length;
   const currentPromo = promoSlides[activePromoIndex];
@@ -826,14 +830,14 @@ export default function ProductCatalog({ onAddToCart, cart = [] }) {
           <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
             <input
               type="number"
-              placeholder="Mín ($)"
+              placeholder="Mín (MXN base)"
               value={precioMin}
               onChange={(e) => applyFilter(setPrecioMin, e.target.value)}
               style={{ width: '50%', padding: '8px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '13px', outline: 'none', backgroundColor: '#f9fafb', boxSizing: 'border-box' }}
             />
             <input
               type="number"
-              placeholder="Máx ($)"
+              placeholder="Máx (MXN base)"
               value={precioMax}
               onChange={(e) => applyFilter(setPrecioMax, e.target.value)}
               style={{ width: '50%', padding: '8px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '13px', outline: 'none', backgroundColor: '#f9fafb', boxSizing: 'border-box' }}
@@ -950,6 +954,9 @@ export default function ProductCatalog({ onAddToCart, cart = [] }) {
               const skuProd = product.sku || product.Sku || product.codigoSku || product.codigo || '';
               const pricing = getCurrentProductPricing(product);
               const precioProd = pricing.price;
+              const monedaProducto = getProductCurrency(product);
+              const precioCliente = getCustomerProductPrice(product, precioProd);
+              const precioOriginalCliente = getCustomerProductPrice(product, pricing.originalPrice);
               const rutaRaw = product.image || product.imageUrl || product.imagenUrl || '';
               const stockDisponible = product.stock ?? 0;
               const itemEnCarrito = cart.find(item => (item.productoId || item.id) === idClave);
@@ -998,14 +1005,15 @@ export default function ProductCatalog({ onAddToCart, cart = [] }) {
                       {pricing.offerActive ? (
                         <>
                           <span style={{ display: 'block', color: '#8b9aa5', fontSize: '0.78rem', textDecoration: 'line-through' }}>
-                            ${pricing.originalPrice.toLocaleString()} MXN
+                            {formatProductPrice(convertPriceFromMXN(precioOriginalCliente, monedaProducto), monedaProducto)}
                           </span>
-                          <strong style={{ color: '#c24135' }}>${precioProd.toLocaleString()} </strong>
-                          <span style={{ color: '#c24135' }}>-{pricing.discountPercentage}% · MXN</span>
+                          <strong style={{ color: '#c24135' }}>{formatProductPrice(convertPriceFromMXN(precioCliente, monedaProducto), monedaProducto)} </strong>
+                          <span style={{ color: '#c24135' }}>-{pricing.discountPercentage}% · {monedaProducto}</span>
                         </>
                       ) : (
-                        <>{`$${precioProd.toLocaleString()} `}<span>MXN</span></>
+                        <>{formatProductPrice(convertPriceFromMXN(precioCliente, monedaProducto), monedaProducto)}</>
                       )}
+                      {product.aplicaIva && <small style={{ display: 'block', color: '#64748b', fontSize: '0.72rem' }}>IVA 16% incluido</small>}
                     </p>
                     <button
                       type="button"
