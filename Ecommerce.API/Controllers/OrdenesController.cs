@@ -20,15 +20,18 @@ namespace Ecommerce.API.Controllers
         private readonly ApplicationDbContext _context;
         private readonly ILogger<OrdenesController> _logger;
         private readonly ResendEmailSender _emailSender;
+        private readonly TipoCambioService _tipoCambio;
 
         public OrdenesController(
             ApplicationDbContext context,
             ILogger<OrdenesController> logger,
-            ResendEmailSender emailSender)
+            ResendEmailSender emailSender,
+            TipoCambioService tipoCambio)
         {
             _context = context;
             _logger = logger;
             _emailSender = emailSender;
+            _tipoCambio = tipoCambio;
         }
 
         [HttpGet("mis-compras")]
@@ -397,6 +400,7 @@ namespace Ecommerce.API.Controllers
 
                 decimal subtotal = 0;
                 decimal iva = 0;
+                var tipoCambioUsdAMxn = _tipoCambio.Actual.PesosPorDolar;
                 var detallesOrden = new List<OrdenDetalle>();
 
                 foreach (var item in solicitud.Items)
@@ -411,13 +415,17 @@ namespace Ecommerce.API.Controllers
                     bool esBajoPedido = producto.Stock <= 0;
                     producto.Stock -= item.Cantidad;
 
-                    subtotal += producto.PrecioPublico * item.Cantidad;
-                    iva += PrecioProducto.ObtenerIva(producto.PrecioPublico, producto) * item.Cantidad;
+                    var precioActual = PrecioProducto.ObtenerPrecioActual(
+                        producto,
+                        DateTime.UtcNow,
+                        tipoCambioUsdAMxn);
+                    subtotal += precioActual * item.Cantidad;
+                    iva += PrecioProducto.ObtenerIva(precioActual, producto) * item.Cantidad;
                     detallesOrden.Add(new OrdenDetalle
                     {
                         ProductoId = producto.ProductoId,
                         Cantidad = item.Cantidad,
-                        PrecioUnitario = producto.PrecioPublico,
+                        PrecioUnitario = precioActual,
                         EsBajoPedido = esBajoPedido
                     });
                 }

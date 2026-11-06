@@ -20,6 +20,9 @@ export default function AdminDashboard() {
   const [marcas, setMarcas] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [tipoCambio, setTipoCambio] = useState(18.59);
+  const [fechaTipoCambio, setFechaTipoCambio] = useState('');
+  const [fuenteTipoCambio, setFuenteTipoCambio] = useState('Referencia inicial');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -51,11 +54,12 @@ export default function AdminDashboard() {
   }, []);
 
   const cargarDatos = useCallback(async () => {
-    const [resProd, resCat, resSub, resMarcas] = await Promise.all([
+    const [resProd, resCat, resSub, resMarcas, resTipoCambio] = await Promise.all([
         api.get('/productos'),
         api.get('/categorias'),
         api.get('/subcategorias'),
-        api.get('/marcas')
+        api.get('/marcas'),
+        api.get('/productos/tipo-cambio')
       ]);
 
       const categoriasMapeadas = (resCat.data || []).map(cat => ({
@@ -76,7 +80,10 @@ export default function AdminDashboard() {
         products: resProd.data || [],
         categorias: categoriasMapeadas,
         subCategorias: subCategoriasMapeadas,
-        marcas: marcasMapeadas
+        marcas: marcasMapeadas,
+        tipoCambio: Number(resTipoCambio.data.pesosPorDolar),
+        fechaTipoCambio: resTipoCambio.data.fecha,
+        fuenteTipoCambio: resTipoCambio.data.fuente
       };
   }, []);
 
@@ -85,6 +92,9 @@ export default function AdminDashboard() {
     setCategorias(data.categorias);
     setSubCategorias(data.subCategorias);
     setMarcas(data.marcas);
+    setTipoCambio(data.tipoCambio);
+    setFechaTipoCambio(data.fechaTipoCambio);
+    setFuenteTipoCambio(data.fuenteTipoCambio);
   }, []);
 
   const recargarDatos = useCallback(async () => {
@@ -241,9 +251,7 @@ export default function AdminDashboard() {
     setDescripcion(item.description || item.descripcion || '');
     const moneda = item.currency === 'USD' ? 'USD' : 'MXN';
     setMonedaPrecio(moneda);
-    setPrecioPublico(
-      convertPriceFromMXN(item.originalPrice ?? item.precioPublico ?? item.price ?? 0, moneda).toFixed(2)
-    );
+    setPrecioPublico(Number(item.originalPrice ?? item.precioPublico ?? item.price ?? 0).toFixed(2));
     setAplicaIva(Boolean(item.aplicaIva));
     setDescuentoOferta(String(item.discountPercentage ?? 0));
     setOfertaInicio(toDateTimeLocal(item.offerStartUtc));
@@ -327,12 +335,15 @@ export default function AdminDashboard() {
         descripcion={descripcion} setDescripcion={setDescripcion}
         precioPublico={precioPublico} setPrecioPublico={setPrecioPublico} 
         monedaPrecio={monedaPrecio}
+        tipoCambio={tipoCambio}
+        fechaTipoCambio={fechaTipoCambio}
+        fuenteTipoCambio={fuenteTipoCambio}
         setMonedaPrecio={(nextCurrency) => {
           if (nextCurrency !== 'MXN' && nextCurrency !== 'USD') return;
           const currentAmount = Number(precioPublico);
           if (Number.isFinite(currentAmount) && currentAmount > 0) {
-            const priceInMxn = convertPriceToMXN(currentAmount, monedaPrecio);
-            setPrecioPublico(convertPriceFromMXN(priceInMxn, nextCurrency).toFixed(2));
+            const priceInMxn = convertPriceToMXN(currentAmount, monedaPrecio, tipoCambio);
+            setPrecioPublico(convertPriceFromMXN(priceInMxn, nextCurrency, tipoCambio).toFixed(2));
           }
           setMonedaPrecio(nextCurrency);
         }}

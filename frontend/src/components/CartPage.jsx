@@ -11,11 +11,11 @@ export default function CartPage({ cart, setCart, removeFromCart, updateQuantity
   const cartSafe = Array.isArray(cart) ? cart : [];
   const total = cartSafe.reduce((acc, item) => {
     const price = getCustomerProductPrice(item, getCurrentProductPricing(item).price);
-    const priceInMxn = convertPriceToMXN(price, getProductCurrency(item));
+    const priceInMxn = convertPriceToMXN(price, getProductCurrency(item), item.exchangeRate);
     return acc + (priceInMxn * (Number(item.cantidad) || 1));
   }, 0);
   const displayTotal = cartSafe.length > 0 && cartSafe.every(item => getProductCurrency(item) === 'USD')
-    ? formatProductPrice(convertPriceFromMXN(total, 'USD'), 'USD')
+    ? formatProductPrice(convertPriceFromMXN(total, 'USD', cartSafe[0]?.exchangeRate), 'USD')
     : formatProductPrice(total, 'MXN');
   const hasMixedCurrencies = new Set(cartSafe.map(getProductCurrency)).size > 1;
   const totalItems = cartSafe.reduce((acc, item) => acc + (Number(item.cantidad) || 1), 0);

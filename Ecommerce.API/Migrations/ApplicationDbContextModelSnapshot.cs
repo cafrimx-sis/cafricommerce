@@ -517,6 +517,28 @@ namespace Ecommerce.API.Migrations
                     b.ToTable("SolicitudesFacturacion");
                 });
 
+            modelBuilder.Entity("Ecommerce.API.Entities.TipoCambioDiario", b =>
+                {
+                    b.Property<DateOnly>("Fecha")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("ActualizadoUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Fuente")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<decimal>("PesosPorDolar")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.HasKey("Fecha");
+
+                    b.ToTable("TiposCambioDiarios");
+                });
+
             modelBuilder.Entity("Ecommerce.API.Entities.SubCategoria", b =>
                 {
                     b.Property<int>("SubCategoriaId")

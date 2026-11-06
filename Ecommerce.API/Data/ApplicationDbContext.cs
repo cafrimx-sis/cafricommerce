@@ -23,6 +23,7 @@ namespace Ecommerce.API.Data
         public DbSet<DetalleVenta> DetalleVentas { get; set; }
         public DbSet<CorteCaja> CortesCaja { get; set; }
         public DbSet<SolicitudFactura> SolicitudesFacturacion { get; set; }
+        public DbSet<TipoCambioDiario> TiposCambioDiarios { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -65,6 +66,14 @@ namespace Ecommerce.API.Data
             modelBuilder.Entity<Producto>()
                 .Property(p => p.DescuentoPorcentaje)
                 .HasPrecision(5, 2);
+
+            modelBuilder.Entity<TipoCambioDiario>(tipoCambio =>
+            {
+                tipoCambio.ToTable("TiposCambioDiarios");
+                tipoCambio.HasKey(registro => registro.Fecha);
+                tipoCambio.Property(registro => registro.PesosPorDolar).HasPrecision(18, 6);
+                tipoCambio.Property(registro => registro.Fuente).HasMaxLength(40);
+            });
 
             // Mapeo explícito para la columna con variante ortográfica en SQL
             modelBuilder.Entity<Producto>()

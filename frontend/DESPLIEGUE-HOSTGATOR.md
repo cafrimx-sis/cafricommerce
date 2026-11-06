@@ -48,17 +48,18 @@ para permitir en CORS el origen HTTPS exacto del frontend, por ejemplo
 
 ## Moneda e IVA por producto
 
-Cada producto se captura y se muestra en su moneda (MXN o USD). Para calcular
-órdenes y cargos PayPal, los precios USD se convierten a MXN con la referencia
-fija `1 USD = 18.59 MXN` (`5/11/2026`). El precio guardado en la base de datos
-se normaliza a MXN y conserva la moneda de presentación del producto.
+Cada producto se captura y se muestra en su moneda (MXN o USD). Los precios
+USD se convierten a MXN con el tipo de cambio FIX más reciente de Banxico al
+calcular órdenes, ventas del Punto de Venta y cargos PayPal. La aplicación
+consulta la tasa al iniciar y cada seis horas; conserva en PostgreSQL la última
+observación disponible si Banxico no responde. El frontend muestra la tasa y
+fecha recibidas desde la API.
 
 Al marcar **Aplicar IVA del 16%**, el precio capturado se considera antes de
 IVA. La tienda lo suma al precio mostrado y la API calcula el impuesto en las
 compras y en el Punto de Venta; allí el descuento se aplica antes de calcular
 el IVA. Los productos existentes conservan moneda MXN y quedan sin IVA por
-defecto. La tasa de referencia es fija y debe actualizarse en frontend y API
-cuando el negocio decida cambiarla.
+defecto. La tasa MXN/USD se obtiene de Banxico en el backend.
 
 ## Verificación
 

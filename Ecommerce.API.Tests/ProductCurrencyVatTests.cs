@@ -20,6 +20,29 @@ public class ProductCurrencyVatTests
     }
 
     [Fact]
+    public void ConvertsUsdProductPricesUsingTheCurrentExchangeRate()
+    {
+        Assert.Equal(200m, PrecioProducto.ConvertirPrecioAMxn(10m, "USD", 20m));
+        Assert.Equal(10m, PrecioProducto.ConvertirPrecioDesdeMxn(200m, "USD", 20m));
+    }
+
+    [Fact]
+    public void AppliesTheOfferToUsdBasePriceBeforeConvertingForCheckout()
+    {
+        var now = new DateTime(2026, 11, 6, 12, 0, 0, DateTimeKind.Utc);
+        var product = new Producto
+        {
+            PrecioPublico = 100m,
+            MonedaPrecio = "USD",
+            DescuentoPorcentaje = 10m,
+            OfertaInicioUtc = now.AddHours(-1),
+            OfertaFinUtc = now.AddHours(1)
+        };
+
+        Assert.Equal(1800m, PrecioProducto.ObtenerPrecioActual(product, now, 20m));
+    }
+
+    [Fact]
     public void CalculatesVatOnlyForProductsMarkedAsTaxable()
     {
         var product = new Producto { AplicaIva = true };

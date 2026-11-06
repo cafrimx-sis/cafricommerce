@@ -3,6 +3,7 @@ export default function ProductModal({
   sku, setSku, nombre, setNombre, 
   descripcion, setDescripcion,
   precioPublico, setPrecioPublico, monedaPrecio, setMonedaPrecio, aplicaIva, setAplicaIva,
+  tipoCambio, fechaTipoCambio, fuenteTipoCambio,
   stock, setStock,
   descuentoOferta, setDescuentoOferta, ofertaInicio, setOfertaInicio,
   ofertaFin, setOfertaFin,
@@ -190,7 +191,7 @@ export default function ProductModal({
                 <option value="USD">Dólar estadounidense (USD)</option>
               </select>
               <small style={{ display: 'block', marginTop: '6px', color: '#64748b', lineHeight: 1.4 }}>
-                Referencia fija: 1 USD = 18.59 MXN · 5/11/2026
+                {fuenteTipoCambio === 'Banxico FIX' ? 'Banxico FIX' : 'Referencia temporal'}: 1 USD = {Number(tipoCambio).toFixed(4)} MXN{fechaTipoCambio ? ` · ${fechaTipoCambio}` : ''}
               </small>
             </div>
             <div style={{ flex: 1, marginBottom: '15px' }}>

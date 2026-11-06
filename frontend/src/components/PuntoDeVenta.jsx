@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import { getPosVat } from '../lib/productPricing';
+import { convertPriceToMXN, getProductCurrency } from '../lib/productCurrency';
 
 export default function PuntoDeVenta() {
   const [productos, setProductos] = useState([]);
@@ -52,7 +53,11 @@ export default function PuntoDeVenta() {
   const agregarAlTicket = (prod) => {
     const idClave = prod.id || prod.productoId;
     const nombreProd = prod.name || prod.nombre || 'Sin nombre';
-    const precioProd = Number(prod.precioPublico ?? prod.precio ?? prod.price ?? 0);
+    const precioProd = convertPriceToMXN(
+      Number(prod.precioPublico ?? prod.precio ?? prod.price ?? 0),
+      getProductCurrency(prod),
+      Number(prod.exchangeRate) || undefined
+    );
     const stockMax = prod.stock ?? prod.Stock ?? 0;
     
     const rawImg = prod.imagenUrl || prod.imageUrl || prod.ImagenUrl || prod.imagen || prod.image || prod.rutaImagen;
@@ -209,7 +214,11 @@ export default function PuntoDeVenta() {
             productosFiltrados.map(prod => {
               const idProd = prod.id || prod.productoId;
               const nombreProd = prod.name || prod.nombre || 'Sin nombre';
-              const precioProd = Number(prod.precioPublico ?? prod.precio ?? prod.price ?? 0);
+              const precioProd = convertPriceToMXN(
+                Number(prod.precioPublico ?? prod.precio ?? prod.price ?? 0),
+                getProductCurrency(prod),
+                Number(prod.exchangeRate) || undefined
+              );
               const stock = prod.stock ?? prod.Stock ?? 0;
               
               const rawImg = prod.imagenUrl || prod.imageUrl || prod.ImagenUrl || prod.imagen || prod.image || prod.rutaImagen;

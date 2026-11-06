@@ -20,13 +20,20 @@ public class PayPalController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly ApplicationDbContext _context;
     private readonly ILogger<PayPalController> _logger;
+    private readonly TipoCambioService _tipoCambio;
 
-    public PayPalController(HttpClient httpClient, IConfiguration configuration, ApplicationDbContext context, ILogger<PayPalController> logger)
+    public PayPalController(
+        HttpClient httpClient,
+        IConfiguration configuration,
+        ApplicationDbContext context,
+        ILogger<PayPalController> logger,
+        TipoCambioService tipoCambio)
     {
         _httpClient = httpClient;
         _configuration = configuration;
         _context = context;
         _logger = logger;
+        _tipoCambio = tipoCambio;
     }
 
     private async Task<string> GetAccessTokenAsync()
@@ -109,6 +116,7 @@ public class PayPalController : ControllerBase
 
             decimal subtotal = 0;
             decimal iva = 0;
+            var tipoCambioUsdAMxn = _tipoCambio.Actual.PesosPorDolar;
             var detallesList = new List<OrdenDetalle>();
             var groupedItems = checkout.Items.GroupBy(item => item.ProductoId).Select(group => new
             {
@@ -134,7 +142,10 @@ public class PayPalController : ControllerBase
                     await transaction.RollbackAsync();
                     return BadRequest(new { mensaje = $"Stock insuficiente para el producto: {productoDb.Nombre}." });
                 }
-                var precioActual = PrecioProducto.ObtenerPrecioActual(productoDb, DateTime.UtcNow);
+                var precioActual = PrecioProducto.ObtenerPrecioActual(
+                    productoDb,
+                    DateTime.UtcNow,
+                    tipoCambioUsdAMxn);
                 if (precioActual <= 0)
                 {
                     await transaction.RollbackAsync();

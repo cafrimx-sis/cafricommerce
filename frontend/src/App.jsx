@@ -17,6 +17,7 @@ import OlvidePassword from './components/auth/OlvidePassword';
 import RestablecerPassword from './components/auth/RestablecerPassword';
 import SolicitudFactura from './components/SolicitudFactura'; // 📄 Importación de la vista de Solicitud de Factura
 import LegalPage from './components/LegalPage';
+import api from './lib/api';
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -32,7 +33,62 @@ function App() {
   });
 
   const [isNavOpen, setIsNavOpen] = useState(false);
+  const [tipoCambio, setTipoCambio] = useState(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    let active = true;
+    const cargarTipoCambio = async () => {
+      try {
+        const [{ data }, { data: productos }] = await Promise.all([
+          api.get('/productos/tipo-cambio'),
+          api.get('/productos')
+        ]);
+        const rate = Number(data.pesosPorDolar);
+        if (!Number.isFinite(rate) || rate <= 0) throw new Error('La API devolvió un tipo de cambio inválido.');
+        if (!active) return;
+        setTipoCambio(data);
+        const productosPorId = new Map(
+          (Array.isArray(productos) ? productos : []).map(producto => [
+            Number(producto.id ?? producto.productoId),
+            producto
+          ])
+        );
+        setCart(prev => prev.map(item => {
+          const productoId = Number(item.productoId ?? item.id);
+          const productoActual = productosPorId.get(productoId);
+          if (!productoActual) {
+            return {
+              ...item,
+              exchangeRate: rate,
+              exchangeRateDate: data.fecha,
+              exchangeRateSource: data.fuente
+            };
+          }
+
+          return {
+            ...item,
+            ...productoActual,
+            productoId,
+            cantidad: item.cantidad,
+            urlImagen: item.urlImagen || productoActual.image,
+            exchangeRate: rate,
+            exchangeRateDate: data.fecha,
+            exchangeRateSource: data.fuente
+          };
+        }));
+      } catch (error) {
+        console.warn('No se pudo actualizar el tipo de cambio desde la API.', error);
+      }
+    };
+
+    cargarTipoCambio();
+    const intervalId = window.setInterval(cargarTipoCambio, 6 * 60 * 60 * 1000);
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('cart', JSON.stringify(cart));
@@ -312,8 +368,10 @@ function App() {
         </button>
 
         <nav className={`app-nav ${isNavOpen ? 'open' : ''}`}>
-          <span className="exchange-rate-note" title="Tipo de cambio de referencia para convertir precios de productos">
-            Referencia: 1 USD = 18.59 MXN · 5/11/2026
+          <span className="exchange-rate-note" title="Tipo de cambio FIX más reciente publicado por Banxico">
+            {tipoCambio
+              ? `${tipoCambio.fuente === 'Banxico FIX' ? 'Banxico FIX' : 'Referencia temporal'}: 1 USD = ${Number(tipoCambio.pesosPorDolar).toFixed(4)} MXN · ${tipoCambio.fecha}`
+              : 'Consultando tipo de cambio Banxico…'}
           </span>
           <Link to="/" className="nav-link" onClick={() => setIsNavOpen(false)}>
             Catálogo

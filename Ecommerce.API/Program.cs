@@ -59,13 +59,17 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 builder.Services.Configure<PayPalSettings>(builder.Configuration.GetSection("PayPalSettings"));
 builder.Services.AddSingleton(productImageStorage);
+builder.Services.AddSingleton<TipoCambioService>();
 builder.Services.AddHostedService<PaypalInventoryReservationCleanupService>();
+builder.Services.AddHostedService<BanxicoTipoCambioService>();
 
 // 3. Servicios básicos
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("Banxico", client =>
+    client.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddHttpClient<ResendEmailSender>(client =>
     client.BaseAddress = new Uri("https://api.resend.com/"));
 builder.Services.AddRateLimiter(options =>

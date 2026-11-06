@@ -1,20 +1,19 @@
-export const USD_TO_MXN_RATE = 18.59;
-export const EXCHANGE_RATE_REFERENCE_DATE = '5/11/2026';
+export const LEGACY_USD_TO_MXN_RATE = 18.59;
 export const PRODUCT_VAT_RATE = 0.16;
 
 export function getProductCurrency(product) {
   return product?.currency === 'USD' ? 'USD' : 'MXN';
 }
 
-export function convertPriceToMXN(amount, currency) {
+export function convertPriceToMXN(amount, currency, exchangeRate = LEGACY_USD_TO_MXN_RATE) {
   const value = Number(amount) || 0;
-  return Math.round((currency === 'USD' ? value * USD_TO_MXN_RATE : value) * 100) / 100;
+  return Math.round((currency === 'USD' ? value * exchangeRate : value) * 100) / 100;
 }
 
-export function convertPriceFromMXN(amount, currency) {
+export function convertPriceFromMXN(amount, currency, exchangeRate = LEGACY_USD_TO_MXN_RATE) {
   const value = Number(amount) || 0;
   return currency === 'USD'
-    ? Math.round((value / USD_TO_MXN_RATE) * 100) / 100
+    ? Math.round((value / exchangeRate) * 100) / 100
     : value;
 }
 

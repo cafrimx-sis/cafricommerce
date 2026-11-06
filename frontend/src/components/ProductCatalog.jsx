@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import { getCurrentProductPricing, getCustomerProductPrice } from '../lib/productPricing';
-import { convertPriceFromMXN, formatProductPrice, getProductCurrency } from '../lib/productCurrency';
+import { formatProductPrice, getProductCurrency } from '../lib/productCurrency';
 
 export default function ProductCatalog({ onAddToCart, cart = [] }) {
   const navigate = useNavigate();
@@ -165,7 +165,7 @@ export default function ProductCatalog({ onAddToCart, cart = [] }) {
             : `Oferta vigente · ${pricing.discountPercentage}% de descuento`,
           title: <>{product.nombre || product.name || 'Producto destacado'} <span>{featuredActive ? 'conoce esta novedad' : 'por tiempo limitado'}</span></>,
           description: pricing.offerActive
-            ? `Antes ${formatProductPrice(convertPriceFromMXN(getCustomerProductPrice(product, pricing.originalPrice), currency), currency)}. Aprovecha el precio especial de ${formatProductPrice(convertPriceFromMXN(getCustomerProductPrice(product, pricing.price), currency), currency)}${product.aplicaIva ? ' con IVA incluido' : ''}.`
+            ? `Antes ${formatProductPrice(getCustomerProductPrice(product, pricing.originalPrice), currency)}. Aprovecha el precio especial de ${formatProductPrice(getCustomerProductPrice(product, pricing.price), currency)}${product.aplicaIva ? ' con IVA incluido' : ''}.`
             : product.description || 'Descubre este producto nuevo que CAFRI seleccionó para ti.',
           actionLabel: 'Ver producto',
           imageUrl: getImageUrl(product.image || product.imageUrl || product.imagenUrl || ''),
@@ -1005,13 +1005,13 @@ export default function ProductCatalog({ onAddToCart, cart = [] }) {
                       {pricing.offerActive ? (
                         <>
                           <span style={{ display: 'block', color: '#8b9aa5', fontSize: '0.78rem', textDecoration: 'line-through' }}>
-                            {formatProductPrice(convertPriceFromMXN(precioOriginalCliente, monedaProducto), monedaProducto)}
+                            {formatProductPrice(precioOriginalCliente, monedaProducto)}
                           </span>
-                          <strong style={{ color: '#c24135' }}>{formatProductPrice(convertPriceFromMXN(precioCliente, monedaProducto), monedaProducto)} </strong>
+                          <strong style={{ color: '#c24135' }}>{formatProductPrice(precioCliente, monedaProducto)} </strong>
                           <span style={{ color: '#c24135' }}>-{pricing.discountPercentage}% · {monedaProducto}</span>
                         </>
                       ) : (
-                        <>{formatProductPrice(convertPriceFromMXN(precioCliente, monedaProducto), monedaProducto)}</>
+                        <>{formatProductPrice(precioCliente, monedaProducto)}</>
                       )}
                       {product.aplicaIva && <small style={{ display: 'block', color: '#64748b', fontSize: '0.72rem' }}>IVA 16% incluido</small>}
                     </p>

@@ -1,7 +1,7 @@
 import api from '../lib/api';
 import { getCurrentProductPricing, getCustomerProductPrice } from '../lib/productPricing';
 import { Link } from 'react-router-dom';
-import { convertPriceFromMXN, formatProductPrice, getProductCurrency } from '../lib/productCurrency';
+import { formatProductPrice, getProductCurrency } from '../lib/productCurrency';
 
 export default function Cart({ cart, removeFromCart, updateQuantity }) {
   const BASE_URL = api.defaults.baseURL.replace(/\/api\/?$/, '');
@@ -209,11 +209,11 @@ export default function Cart({ cart, removeFromCart, updateQuantity }) {
                   {item.sku && <span style={{ color: '#71889a', fontSize: '0.76rem', marginTop: '3px' }}>SKU: {item.sku}</span>}
                   {pricing.offerActive && (
                     <span style={{ color: '#8293a0', fontSize: '0.78rem', textDecoration: 'line-through', marginTop: '5px' }}>
-                      {formatProductPrice(convertPriceFromMXN(originalCustomerPrice, currency), currency)}
+                      {formatProductPrice(originalCustomerPrice, currency)}
                     </span>
                   )}
                   <span style={{ color: pricing.offerActive ? '#c24135' : '#718096', fontSize: '0.85rem', marginTop: '4px' }}>
-                    {formatProductPrice(convertPriceFromMXN(customerPrice, currency), currency)}{pricing.offerActive ? ` · ${pricing.discountPercentage}% desc.` : ''}
+                    {formatProductPrice(customerPrice, currency)}{pricing.offerActive ? ` · ${pricing.discountPercentage}% desc.` : ''}
                   </span>
                   {item.aplicaIva && <small style={{ color: '#64748b', marginTop: '2px' }}>IVA 16% incluido</small>}
                   {hasKnownStock && (
@@ -245,7 +245,7 @@ export default function Cart({ cart, removeFromCart, updateQuantity }) {
                   >+</button>
                 </div>
                 <span style={{ fontWeight: '800', color: '#0c5474', minWidth: '100px', textAlign: 'right', fontSize: '0.9rem' }}>
-                  {formatProductPrice(convertPriceFromMXN(customerPrice * quantity, currency), currency)}
+                  {formatProductPrice(customerPrice * quantity, currency)}
                 </span>
                 <button
                   type="button"

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import api from "../../lib/api"; 
 import { getCustomerProductPrice } from '../../lib/productPricing';
-import { convertPriceFromMXN, formatProductPrice, getProductCurrency } from '../../lib/productCurrency';
+import { formatProductPrice, getProductCurrency } from '../../lib/productCurrency';
 
 const MAX_BULK_OFFER_PRODUCTS = 500;
 
@@ -335,14 +335,8 @@ export default function ProductTable({ products = [], loading, error, onEdit, on
                 const descProd = item.descripcion || item.description || '';
                 const marcaProd = item.brand || item.Marca?.nombre || '';
                 const monedaProducto = getProductCurrency(item);
-                const precioProd = convertPriceFromMXN(
-                  getCustomerProductPrice(item, item.price ?? item.originalPrice ?? 0),
-                  monedaProducto
-                );
-                const precioLista = convertPriceFromMXN(
-                  getCustomerProductPrice(item, item.originalPrice ?? item.price ?? 0),
-                  monedaProducto
-                );
+                const precioProd = getCustomerProductPrice(item, item.price ?? item.originalPrice ?? 0);
+                const precioLista = getCustomerProductPrice(item, item.originalPrice ?? item.price ?? 0);
                 const idSeleccionado = item.productoId || item.id || item.ProductoId;
                 const stockDisponible = item.stock ?? 0;
 

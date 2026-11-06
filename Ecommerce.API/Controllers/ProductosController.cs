@@ -17,13 +17,30 @@ namespace Ecommerce.API.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly string _productImagesPath;
+        private readonly TipoCambioService _tipoCambio;
 
         public ProductosController(
             ApplicationDbContext context,
-            ProductImageStorageOptions productImageStorage)
+            ProductImageStorageOptions productImageStorage,
+            TipoCambioService tipoCambio)
         {
             _context = context;
             _productImagesPath = productImageStorage.StoragePath;
+            _tipoCambio = tipoCambio;
+        }
+
+        [HttpGet("tipo-cambio")]
+        [AllowAnonymous]
+        public IActionResult GetTipoCambio()
+        {
+            var actual = _tipoCambio.Actual;
+            return Ok(new
+            {
+                pesosPorDolar = actual.PesosPorDolar,
+                fecha = actual.Fecha.ToString("yyyy-MM-dd"),
+                actualizadoUtc = actual.ActualizadoUtc,
+                fuente = actual.Fuente
+            });
         }
 
         // 🌐 Listar todos los productos
@@ -38,7 +55,8 @@ namespace Ecommerce.API.Controllers
                 .ToListAsync();
 
             var ahoraUtc = DateTime.UtcNow;
-            return Ok(productos.Select(p => MapProducto(p, ahoraUtc)));
+            var tipoCambio = _tipoCambio.Actual;
+            return Ok(productos.Select(p => MapProducto(p, ahoraUtc, tipoCambio)));
         }
 
         // 🔍 Obtener un solo producto por su ID numérico o por su SKU
@@ -56,14 +74,14 @@ namespace Ecommerce.API.Controllers
 
             if (p == null) return NotFound(new { mensaje = "El producto no existe." });
 
-            return Ok(MapProducto(p, DateTime.UtcNow));
+            return Ok(MapProducto(p, DateTime.UtcNow, _tipoCambio.Actual));
         }
 
         [HttpPost]
         [Authorize(Roles = "Administrador")]
         public async Task<IActionResult> PostProducto([FromForm] ProductoDto dto, IFormFile? file)
         {
-            var errorPrecio = ValidarPrecio(dto);
+            var errorPrecio = ValidarPrecio(dto, _tipoCambio.Actual.PesosPorDolar);
             if (errorPrecio != null) return BadRequest(new { mensaje = errorPrecio });
             var errorOferta = ValidarOferta(dto);
             if (errorOferta != null) return BadRequest(new { mensaje = errorOferta });
@@ -94,7 +112,7 @@ namespace Ecommerce.API.Controllers
             {
                 SKU = dto.Sku,
                 Nombre = dto.Name,
-                PrecioPublico = PrecioProducto.ConvertirPrecioAMxn(dto.Price, dto.Currency),
+                PrecioPublico = dto.Price,
                 MonedaPrecio = dto.Currency,
                 AplicaIva = dto.AplicaIva,
                 DescuentoPorcentaje = dto.DescuentoPorcentaje,
@@ -123,7 +141,7 @@ namespace Ecommerce.API.Controllers
         [Authorize(Roles = "Administrador")]
         public async Task<IActionResult> PutProducto(int id, [FromForm] ProductoDto dto, IFormFile? file)
         {
-            var errorPrecio = ValidarPrecio(dto);
+            var errorPrecio = ValidarPrecio(dto, _tipoCambio.Actual.PesosPorDolar);
             if (errorPrecio != null) return BadRequest(new { mensaje = errorPrecio });
             var errorOferta = ValidarOferta(dto);
             if (errorOferta != null) return BadRequest(new { mensaje = errorOferta });
@@ -135,7 +153,7 @@ namespace Ecommerce.API.Controllers
 
             p.SKU = dto.Sku;
             p.Nombre = dto.Name;
-            p.PrecioPublico = PrecioProducto.ConvertirPrecioAMxn(dto.Price, dto.Currency);
+            p.PrecioPublico = dto.Price;
             p.MonedaPrecio = dto.Currency;
             p.AplicaIva = dto.AplicaIva;
             p.DescuentoPorcentaje = dto.DescuentoPorcentaje;
@@ -252,7 +270,7 @@ namespace Ecommerce.API.Controllers
             return null;
         }
 
-        private static string? ValidarPrecio(ProductoDto dto)
+        private static string? ValidarPrecio(ProductoDto dto, decimal tipoCambioUsdAMxn)
         {
             if (dto.Price <= 0)
                 return "El precio debe ser mayor a cero.";
@@ -260,7 +278,7 @@ namespace Ecommerce.API.Controllers
                 return "La moneda del producto debe ser MXN o USD.";
             const decimal maxPriceMxn = 9999999999999999.99m;
             var maxInputPrice = dto.Currency == "USD"
-                ? maxPriceMxn / PrecioProducto.TipoCambioUsdAMxn
+                ? maxPriceMxn / tipoCambioUsdAMxn
                 : maxPriceMxn;
             if (dto.Price > maxInputPrice)
                 return "El precio convertido supera el importe máximo permitido.";
@@ -283,7 +301,7 @@ namespace Ecommerce.API.Controllers
             return null;
         }
 
-        private static object MapProducto(Producto p, DateTime ahoraUtc)
+        private static object MapProducto(Producto p, DateTime ahoraUtc, TipoCambioSnapshot tipoCambio)
         {
             var ofertaActiva = PrecioProducto.TieneOfertaActiva(p, ahoraUtc);
             var destacadoActivo = PrecioProducto.EsDestacadoActivo(p, ahoraUtc);
@@ -299,8 +317,11 @@ namespace Ecommerce.API.Controllers
                 mainMarcaId = p.MainMarcaId,
                 brand = p.Marca?.Nombre ?? "N/A",
                 currency = p.MonedaPrecio,
+                exchangeRate = tipoCambio.PesosPorDolar,
+                exchangeRateDate = tipoCambio.Fecha.ToString("yyyy-MM-dd"),
+                exchangeRateSource = tipoCambio.Fuente,
                 aplicaIva = p.AplicaIva,
-                price = PrecioProducto.ObtenerPrecioActual(p, ahoraUtc),
+                price = PrecioProducto.ObtenerPrecioBaseActual(p, ahoraUtc),
                 originalPrice = p.PrecioPublico,
                 discountPercentage = p.DescuentoPorcentaje,
                 offerStartUtc = p.OfertaInicioUtc.HasValue

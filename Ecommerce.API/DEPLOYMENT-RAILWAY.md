@@ -46,6 +46,7 @@ en el repositorio:
 | `PayPalSettings__ClientId` | Client ID del entorno PayPal seleccionado |
 | `PayPalSettings__ClientSecret` | Secreto del entorno PayPal seleccionado |
 | `PayPalSettings__WebhookId` | ID del webhook PayPal del mismo entorno |
+| `Banxico__Token` | Token privado de la API SIE de Banxico |
 | `EmailSettings__ResendApiKey` | Clave API secreta de Resend (`re_...`) |
 | `EmailSettings__SenderEmail` | Correo remitente verificado |
 | `EmailSettings__SenderName` | Nombre del remitente |
@@ -61,6 +62,14 @@ No configures simultáneamente `ConnectionStrings__DefaultConnection` con una
 cadena SQL Server: esa variable prevalece sobre `DATABASE_URL`. No compartas
 credenciales de base de datos en el repositorio ni por chat.
 
+La API consulta el tipo de cambio FIX de Banxico (serie `SF43718`) al iniciar y
+cada seis horas. Guarda el token SIE solo en `Banxico__Token` en las variables
+privadas del servicio Railway. Si Banxico no está disponible, la API conserva
+el último tipo de cambio guardado en PostgreSQL; revisa los logs por advertencias
+de actualización. La migración inicial conserva la antigua referencia fija de
+18.59 hasta recibir una observación oficial; la API expone la fuente y la fecha
+para distinguirla de una tasa FIX actualizada.
+
 ## Esquema y transferencia de datos
 
 La migración activa crea el esquema PostgreSQL desde cero e incluye las tablas
@@ -68,33 +77,55 @@ que usa actualmente la API, incluidas las reservas de inventario PayPal. El
 historial anterior de SQL Server se conserva en
 `Migrations/SqlServerLegacy/` como referencia; no es ejecutable sobre PostgreSQL.
 
-Para añadir moneda por producto e IVA (incluido el Punto de Venta) a una base
-Railway ya creada, haz primero un respaldo de PostgreSQL y ejecuta una sola vez
-`Migrations/PostgreSql-ProductCurrencyVat.sql` en el Query Tool de pgAdmin,
-conectado a la base `railway`. Es un script idempotente que añade las columnas
-`MonedaPrecio` (MXN para los productos existentes) y `AplicaIva` (false para
-los productos existentes) y `Iva` en `VentasFisicas` (0 para las ventas
-existentes), además de registrar ambas migraciones. No vuelvas a ejecutar
-`PostgreSql-Initial.sql` sobre una base existente. Despliega la API actualizada
-solo después de aplicar esta migración.
+La migración `Migrations/PostgreSql-ProductCurrencyVat.sql` añade moneda por
+producto e IVA (incluido el Punto de Venta) a una base Railway existente.
+Asegúrate de que ya esté aplicada antes de continuar: añade `MonedaPrecio`
+(MXN para los productos existentes), `AplicaIva` (false para los existentes)
+y `Iva` en `VentasFisicas` (0 para las ventas existentes), además de registrar
+las migraciones.
+
+Para activar la tasa diaria de Banxico, respalda la base y ejecuta una sola vez
+`Migrations/PostgreSql-BanxicoDailyExchangeRate.sql` en el mismo Query Tool
+antes de desplegar la API y el frontend actualizados. El script crea el historial
+de tipos de cambio, registra la migración y convierte los precios USD existentes
+de MXN a su importe base en USD usando la tasa anterior de 18.59. Los precios
+MXN y los importes históricos de pedidos/ventas no se modifican. Configura
+`Banxico__Token` en Railway y confirma en los logs que la API guardó una
+observación `Banxico FIX`; el endpoint público
+`/api/productos/tipo-cambio` muestra la última tasa y su fecha. No vuelvas a
+ejecutar `PostgreSql-Initial.sql` sobre una base existente. Despliega la API
+actualizada solo después de aplicar la migración de moneda/IVA si aún faltaba y
+la migración de Banxico.
+
+Si la base se creó importando desde SQL Server con DBeaver y el registro falla
+por columnas `bit` o faltan campos de reserva, primero confirma que tienes un
+respaldo y ejecuta una sola vez
+`Migrations/PostgreSql-RepairImportedSqlServerSchema.sql` en Query Tool. El
+script valida los tipos y ejecuta los cambios en una transacción: convierte
+columnas `bit` a `boolean`, normaliza las fechas importadas como UTC, convierte
+`Usuarios.FechaNacimiento` a `date` y agrega los campos de reserva ausentes en
+`Ordenes`. Se asume que las marcas de tiempo importadas representan UTC, como
+las fechas que guarda la API. Si el script genera una excepción, la transacción
+se revierte; no continúes con el despliegue hasta revisar el mensaje.
 
 La base de SQL Server existente contiene datos importantes y no se ha leído,
-respaldado ni modificado desde este proyecto. La transferencia de datos todavía
-no se ha realizado. Antes de cambiar el tráfico:
+respaldado ni modificado desde este proyecto. El usuario realizó una
+transferencia manual con DBeaver a PostgreSQL; su esquema y la integridad de
+los datos todavía deben validarse. Antes de cambiar el tráfico:
 
 1. Haz y prueba un respaldo recuperable de SQL Server.
-2. Crea una base PostgreSQL vacía y aplica `InitialPostgreSql` como paso de
-   mantenimiento independiente. No la apliques sobre una base con datos.
-3. Exporta e importa los datos con una herramienta de migración controlada,
-   respetando el orden de dependencias y los identificadores. PostgreSQL
-   distingue mayúsculas de minúsculas en identificadores entrecomillados; usa
-   los nombres exactos de las tablas y columnas definidos en la migración.
+2. Si preparas una migración nueva, crea una base PostgreSQL vacía y aplica
+   `InitialPostgreSql` por separado. No la apliques sobre una base con datos.
+3. Si vuelves a transferir datos, usa una herramienta controlada que respete el
+   orden de dependencias y los identificadores. PostgreSQL distingue
+   mayúsculas de minúsculas en identificadores entrecomillados; usa los nombres
+   exactos definidos en la migración.
 4. Convierte los valores de fecha/hora a UTC para columnas `timestamp with time
    zone`; `FechaNacimiento` se almacena como `date`.
-5. Reinicia las secuencias/identidades después de importar, valida conteos,
-   relaciones, inventario, pedidos y ventas, y ensaya una restauración.
+5. Valida conteos, relaciones, inventario, pedidos y ventas, y ensaya una
+   restauración.
 6. Cambia el tráfico solo después de aprobar las validaciones y conserva SQL
-   Server y su respaldo hasta confirmar la operación.
+   Server y sus respaldos hasta confirmar la operación.
 
 No ejecutes `dotnet ef database update` automáticamente al iniciar la API.
 No se ha conectado este repositorio a ninguna base real ni se ha aplicado

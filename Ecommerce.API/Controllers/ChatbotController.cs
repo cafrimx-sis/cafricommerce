@@ -15,20 +15,29 @@ namespace Ecommerce.API.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly ILogger<ChatbotController> _logger;
+        private readonly TipoCambioService _tipoCambio;
 
         public ChatbotController(
             ApplicationDbContext context,
-            ILogger<ChatbotController> logger)
+            ILogger<ChatbotController> logger,
+            TipoCambioService tipoCambio)
         {
             _context = context;
             _logger = logger;
+            _tipoCambio = tipoCambio;
         }
 
-        private static string FormatearPrecioTienda(Producto producto, decimal precioBaseMxn)
+        private static string FormatearPrecioTienda(
+            Producto producto,
+            decimal precioBaseMxn,
+            decimal tipoCambioUsdAMxn)
         {
             var moneda = producto.MonedaPrecio == "USD" ? "USD" : "MXN";
             var precioConIva = PrecioProducto.ObtenerPrecioConIva(precioBaseMxn, producto);
-            var precioVisible = PrecioProducto.ConvertirPrecioDesdeMxn(precioConIva, moneda);
+            var precioVisible = PrecioProducto.ConvertirPrecioDesdeMxn(
+                precioConIva,
+                moneda,
+                tipoCambioUsdAMxn);
             return $"{moneda} {precioVisible:F2}{(producto.AplicaIva ? " (IVA 16% incluido)" : string.Empty)}";
         }
 
@@ -36,6 +45,7 @@ namespace Ecommerce.API.Controllers
         [EnableRateLimiting("chatbot")]
         public async Task<IActionResult> EnviarMensaje([FromBody] ChatRequestDto request)
         {
+            var tipoCambioUsdAMxn = _tipoCambio.Actual.PesosPorDolar;
             try
             {
                 if (request is null)
@@ -57,7 +67,10 @@ namespace Ecommerce.API.Controllers
                     }
 
                     var ahoraUtc = DateTime.UtcNow;
-                    var precioActual = PrecioProducto.ObtenerPrecioActual(producto, ahoraUtc);
+                    var precioActual = PrecioProducto.ObtenerPrecioActual(
+                        producto,
+                        ahoraUtc,
+                        tipoCambioUsdAMxn);
                     var descripcion = string.IsNullOrWhiteSpace(producto.Descripcion)
                         ? "Aún no hay especificaciones técnicas registradas para este modelo. Consulta con un asesor."
                         : producto.Descripcion;
@@ -66,7 +79,10 @@ namespace Ecommerce.API.Controllers
                         : "Actualmente sin existencias";
                     var precioLista = producto.DescuentoPorcentaje > 0 &&
                         PrecioProducto.TieneOfertaActiva(producto, ahoraUtc)
-                            ? $"Precio de lista: {FormatearPrecioTienda(producto, producto.PrecioPublico)}\n"
+                            ? $"Precio de lista: {FormatearPrecioTienda(producto, PrecioProducto.ConvertirPrecioAMxn(
+                                producto.PrecioPublico,
+                                producto.MonedaPrecio,
+                                tipoCambioUsdAMxn), tipoCambioUsdAMxn)}\n"
                             : string.Empty;
 
                     return Ok(new
@@ -76,7 +92,7 @@ namespace Ecommerce.API.Controllers
                             $"Marca: {producto.Marca?.Nombre ?? "No especificada"}\n" +
                             $"Categoría: {producto.Categoria?.Nombre ?? "No especificada"}\n" +
                             $"{precioLista}" +
-                            $"Precio actual: {FormatearPrecioTienda(producto, precioActual)}\n" +
+                            $"Precio actual: {FormatearPrecioTienda(producto, precioActual, tipoCambioUsdAMxn)}\n" +
                             $"Disponibilidad: {disponibilidad}\n\n" +
                             $"{descripcion}\n\n" +
                             "Si necesitas otra especificación, pregunta por un dato concreto o consulta a un asesor."
@@ -112,7 +128,9 @@ namespace Ecommerce.API.Controllers
 
                         var equiposEspacio = await _context.Productos
                             .Where(p => p.Nombre.ToLower().Contains("minisplit") && (p.Nombre.Contains(btuStr) || (p.Descripcion != null && p.Descripcion.Contains(btuStr))))
-                            .OrderBy(p => p.PrecioPublico)
+                            .OrderBy(p => p.MonedaPrecio == "USD"
+                                ? p.PrecioPublico * tipoCambioUsdAMxn
+                                : p.PrecioPublico)
                             .Take(5)
                             .ToListAsync();
 
@@ -123,10 +141,13 @@ namespace Ecommerce.API.Controllers
                                 .Select(p => new
                                 {
                                     Producto = p,
-                                    Precio = PrecioProducto.ObtenerPrecioActual(p, ahoraUtc)
+                                    Precio = PrecioProducto.ObtenerPrecioActual(
+                                        p,
+                                        ahoraUtc,
+                                        tipoCambioUsdAMxn)
                                 })
                                 .OrderBy(item => item.Precio)
-                                .Select(item => $"🔹 **{item.Producto.Nombre}**\n   💰 {FormatearPrecioTienda(item.Producto, item.Precio)} (Stock: {item.Producto.Stock})\n   [Más información: {item.Producto.Nombre}](chatbot:producto:{item.Producto.ProductoId})"));
+                                .Select(item => $"🔹 **{item.Producto.Nombre}**\n   💰 {FormatearPrecioTienda(item.Producto, item.Precio, tipoCambioUsdAMxn)} (Stock: {item.Producto.Stock})\n   [Más información: {item.Producto.Nombre}](chatbot:producto:{item.Producto.ProductoId})"));
 
                             // Enlace de WhatsApp neutral para asesoría general
                             string linkWspDudas = $"https://wa.me/5219991021232?text={Uri.EscapeDataString($"Hola, estuve consultando opciones en el asistente para mi espacio de {largo}x{ancho}m y me gustaría recibir asesoría y cotización general.")}";
@@ -206,7 +227,9 @@ namespace Ecommerce.API.Controllers
                     }
 
                     var equipos = await query
-                        .OrderBy(p => p.PrecioPublico)
+                        .OrderBy(p => p.MonedaPrecio == "USD"
+                            ? p.PrecioPublico * tipoCambioUsdAMxn
+                            : p.PrecioPublico)
                         .Take(100)
                         .ToListAsync();
 
@@ -237,7 +260,10 @@ namespace Ecommerce.API.Controllers
                         .Select(p => new
                         {
                             Producto = p,
-                            Precio = PrecioProducto.ObtenerPrecioActual(p, ahoraPrecioUtc)
+                            Precio = PrecioProducto.ObtenerPrecioActual(
+                                p,
+                                ahoraPrecioUtc,
+                                tipoCambioUsdAMxn)
                         })
                         .Where(item =>
                             (!precioMin.HasValue || item.Precio >= precioMin.Value) &&
@@ -262,7 +288,7 @@ namespace Ecommerce.API.Controllers
                     {
                         // Listado limpio sin enlaces internos a rutas de productos
                         var lista = string.Join("\n\n", equiposConPrecio.Select(item =>
-                            $"🔹 **{item.Producto.Nombre}**\n   💰 {FormatearPrecioTienda(item.Producto, item.Precio)} (Stock: {item.Producto.Stock})\n   [Más información: {item.Producto.Nombre}](chatbot:producto:{item.Producto.ProductoId})"));
+                            $"🔹 **{item.Producto.Nombre}**\n   💰 {FormatearPrecioTienda(item.Producto, item.Precio, tipoCambioUsdAMxn)} (Stock: {item.Producto.Stock})\n   [Más información: {item.Producto.Nombre}](chatbot:producto:{item.Producto.ProductoId})"));
 
                         // Enlace de WhatsApp neutral para asesoría general
                         string linkWspDudas = $"https://wa.me/5219991021232?text={Uri.EscapeDataString($"Hola, estuve consultando opciones de {tipoEquipoStr} en el asistente y me gustaría recibir asesoría profesional y cotización.")}";
@@ -313,7 +339,9 @@ namespace Ecommerce.API.Controllers
                     var palabras = mensaje.Split(' ');
                     var productos = await _context.Productos
                         .Where(p => palabras.Any(w => w.Length > 3 && p.Nombre.ToLower().Contains(w)))
-                        .OrderBy(p => p.PrecioPublico)
+                        .OrderBy(p => p.MonedaPrecio == "USD"
+                            ? p.PrecioPublico * tipoCambioUsdAMxn
+                            : p.PrecioPublico)
                         .Take(3)
                         .ToListAsync();
 
@@ -324,10 +352,13 @@ namespace Ecommerce.API.Controllers
                             .Select(p => new
                             {
                                 Producto = p,
-                                Precio = PrecioProducto.ObtenerPrecioActual(p, ahoraUtc)
+                                Precio = PrecioProducto.ObtenerPrecioActual(
+                                    p,
+                                    ahoraUtc,
+                                    tipoCambioUsdAMxn)
                             })
                             .OrderBy(item => item.Precio)
-                            .Select(item => $"• **{item.Producto.Nombre}** - Precio: {FormatearPrecioTienda(item.Producto, item.Precio)} (Stock: {item.Producto.Stock})\n[Más información: {item.Producto.Nombre}](chatbot:producto:{item.Producto.ProductoId})"));
+                            .Select(item => $"• **{item.Producto.Nombre}** - Precio: {FormatearPrecioTienda(item.Producto, item.Precio, tipoCambioUsdAMxn)} (Stock: {item.Producto.Stock})\n[Más información: {item.Producto.Nombre}](chatbot:producto:{item.Producto.ProductoId})"));
                         string linkWspDudas = $"https://wa.me/5219991021232?text={Uri.EscapeDataString("Hola, estuve buscando productos en el asistente y me gustaría recibir asesoría y cotización.")}";
 
                         return Ok(new

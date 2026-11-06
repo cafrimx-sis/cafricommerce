@@ -15,11 +15,16 @@ namespace Ecommerce.API.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly ILogger<VentasController> _logger;
+        private readonly TipoCambioService _tipoCambio;
 
-        public VentasController(ApplicationDbContext context, ILogger<VentasController> logger)
+        public VentasController(
+            ApplicationDbContext context,
+            ILogger<VentasController> logger,
+            TipoCambioService tipoCambio)
         {
             _context = context;
             _logger = logger;
+            _tipoCambio = tipoCambio;
         }
 
         // Endpoint GET para listar ventas (permite filtrar por sinCorte=true o corteId=X)
@@ -100,6 +105,7 @@ namespace Ecommerce.API.Controllers
                 }
 
                 var ahoraUtc = DateTime.UtcNow;
+                var tipoCambioUsdAMxn = _tipoCambio.Actual.PesosPorDolar;
                 decimal subtotal = 0;
                 decimal iva = 0;
                 var factorDescuento = 1 - ventaDto.DescuentoPorcentaje / 100m;
@@ -111,7 +117,10 @@ namespace Ecommerce.API.Controllers
                         await transaction.RollbackAsync();
                         return BadRequest(new { mensaje = $"El precio del producto {producto.Nombre} no es válido." });
                     }
-                    var precioActual = PrecioProducto.ObtenerPrecioActual(producto, ahoraUtc);
+                    var precioActual = PrecioProducto.ObtenerPrecioActual(
+                        producto,
+                        ahoraUtc,
+                        tipoCambioUsdAMxn);
                     var subtotalProducto = precioActual * item.Cantidad;
                     subtotal += subtotalProducto;
                     iva += PrecioProducto.ObtenerIva(
@@ -157,7 +166,10 @@ namespace Ecommerce.API.Controllers
                         VentaId = nuevaVenta.VentaId,
                         ProductoId = item.ProductoId,
                         Cantidad = item.Cantidad,
-                        PrecioUnitario = PrecioProducto.ObtenerPrecioActual(producto, ahoraUtc)
+                        PrecioUnitario = PrecioProducto.ObtenerPrecioActual(
+                            producto,
+                            ahoraUtc,
+                            tipoCambioUsdAMxn)
                     };
 
                     _context.Set<DetalleVenta>().Add(detalle);

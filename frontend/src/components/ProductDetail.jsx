@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import { getCurrentProductPricing, getCustomerProductPrice } from '../lib/productPricing';
-import { convertPriceFromMXN, formatProductPrice, getProductCurrency } from '../lib/productCurrency';
+import { formatProductPrice, getProductCurrency } from '../lib/productCurrency';
 
 export default function ProductDetail({ onAddToCart }) {
   const { id } = useParams();
@@ -391,13 +391,13 @@ export default function ProductDetail({ onAddToCart }) {
             {pricing.offerActive ? (
               <>
                 <span style={{ display: 'block', color: '#8293a0', fontSize: '1rem', textDecoration: 'line-through' }}>
-                  {formatProductPrice(convertPriceFromMXN(precioOriginalCliente, monedaProducto), monedaProducto)}
+                  {formatProductPrice(precioOriginalCliente, monedaProducto)}
                 </span>
-                <strong style={{ color: '#c24135' }}>{formatProductPrice(convertPriceFromMXN(precioCliente, monedaProducto), monedaProducto)}</strong>
+                <strong style={{ color: '#c24135' }}>{formatProductPrice(precioCliente, monedaProducto)}</strong>
                 <span style={{ color: '#c24135' }}> {monedaProducto} · {pricing.discountPercentage}% de descuento</span>
               </>
             ) : (
-              <>{formatProductPrice(convertPriceFromMXN(precioCliente, monedaProducto), monedaProducto)}</>
+              <>{formatProductPrice(precioCliente, monedaProducto)}</>
             )}
             {product.aplicaIva && <span style={{ display: 'block', color: '#64748b', fontSize: '0.85rem', letterSpacing: 0 }}>IVA 16% incluido</span>}
           </div>

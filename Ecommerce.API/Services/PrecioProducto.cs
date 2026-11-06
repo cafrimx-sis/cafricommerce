@@ -21,7 +21,7 @@ public static class PrecioProducto
         producto.OfertaInicioUtc.Value <= ahoraUtc &&
         producto.OfertaFinUtc.Value > ahoraUtc;
 
-    public static decimal ObtenerPrecioActual(Producto producto, DateTime ahoraUtc)
+    public static decimal ObtenerPrecioBaseActual(Producto producto, DateTime ahoraUtc)
     {
         if (!TieneOfertaActiva(producto, ahoraUtc))
             return producto.PrecioPublico;
@@ -30,14 +30,29 @@ public static class PrecioProducto
         return decimal.Round(precio, 2, MidpointRounding.AwayFromZero);
     }
 
-    public static decimal ConvertirPrecioAMxn(decimal precio, string moneda) =>
+    public static decimal ObtenerPrecioActual(
+        Producto producto,
+        DateTime ahoraUtc,
+        decimal tipoCambioUsdAMxn = TipoCambioUsdAMxn) =>
+        ConvertirPrecioAMxn(
+            ObtenerPrecioBaseActual(producto, ahoraUtc),
+            producto.MonedaPrecio,
+            tipoCambioUsdAMxn);
+
+    public static decimal ConvertirPrecioAMxn(
+        decimal precio,
+        string moneda,
+        decimal tipoCambioUsdAMxn = TipoCambioUsdAMxn) =>
         string.Equals(moneda, "USD", StringComparison.Ordinal)
-            ? decimal.Round(precio * TipoCambioUsdAMxn, 2, MidpointRounding.AwayFromZero)
+            ? decimal.Round(precio * tipoCambioUsdAMxn, 2, MidpointRounding.AwayFromZero)
             : precio;
 
-    public static decimal ConvertirPrecioDesdeMxn(decimal precioMxn, string moneda) =>
+    public static decimal ConvertirPrecioDesdeMxn(
+        decimal precioMxn,
+        string moneda,
+        decimal tipoCambioUsdAMxn = TipoCambioUsdAMxn) =>
         string.Equals(moneda, "USD", StringComparison.Ordinal)
-            ? decimal.Round(precioMxn / TipoCambioUsdAMxn, 2, MidpointRounding.AwayFromZero)
+            ? decimal.Round(precioMxn / tipoCambioUsdAMxn, 2, MidpointRounding.AwayFromZero)
             : precioMxn;
 
     public static decimal ObtenerIva(decimal precioBase, Producto producto, decimal descuentoPorcentaje = 0m)

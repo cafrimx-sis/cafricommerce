@@ -150,7 +150,7 @@ export default function Checkout({ cart = [], total = 0, clearCart, user, onBack
               Total a pagar: <strong>{formatProductPrice(total, 'MXN')}</strong>
             </p>
             <p style={{ margin: '-8px 0 16px', color: '#64748b', fontSize: '0.85rem', lineHeight: 1.5 }}>
-              Los importes de los productos en USD se convierten a MXN usando la referencia fija de 1 USD = 18.59 MXN (5/11/2026). PayPal procesará el cargo en MXN.
+              Los importes de productos en USD se convierten a MXN con el tipo de cambio FIX más reciente de Banxico. PayPal procesará el cargo en MXN.
             </p>
             <div style={{ marginBottom: '16px' }}>
               <PayPalButtons 
