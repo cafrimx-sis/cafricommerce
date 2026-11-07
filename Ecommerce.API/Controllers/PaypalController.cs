@@ -21,19 +21,74 @@ public class PayPalController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly ILogger<PayPalController> _logger;
     private readonly TipoCambioService _tipoCambio;
+    private readonly TarifaEnvioService _tarifaEnvio;
 
     public PayPalController(
         HttpClient httpClient,
         IConfiguration configuration,
         ApplicationDbContext context,
         ILogger<PayPalController> logger,
-        TipoCambioService tipoCambio)
+        TipoCambioService tipoCambio,
+        TarifaEnvioService tarifaEnvio)
     {
         _httpClient = httpClient;
         _configuration = configuration;
         _context = context;
         _logger = logger;
         _tipoCambio = tipoCambio;
+        _tarifaEnvio = tarifaEnvio;
+    }
+
+    [HttpPost("shipping-quote")]
+    public async Task<IActionResult> CotizarEnvio([FromBody] CotizarEnvioDto solicitud)
+    {
+        if (!_tarifaEnvio.TryCotizar(solicitud.Estado, out var cotizacion))
+            return BadRequest(new { mensaje = "No se pudo determinar la zona de envío para el estado indicado." });
+
+        if (solicitud.Items.Any(item =>
+                item.ProductoId <= 0 || item.Cantidad <= 0 || item.Cantidad > 1000))
+            return BadRequest(new { mensaje = "La cotización debe incluir productos con cantidades válidas." });
+
+        decimal subtotal = 0;
+        decimal iva = 0;
+        var tipoCambioUsdAMxn = _tipoCambio.Actual.PesosPorDolar;
+        var groupedItems = solicitud.Items.GroupBy(item => item.ProductoId)
+            .Select(group => new { ProductoId = group.Key, Cantidad = group.Sum(item => item.Cantidad) })
+            .ToList();
+        if (groupedItems.Any(item => item.Cantidad > 1000))
+            return BadRequest(new { mensaje = "La cantidad total por producto no puede superar 1000 unidades." });
+
+        foreach (var item in groupedItems)
+        {
+            var producto = await _context.Productos.FindAsync(item.ProductoId);
+            if (producto == null)
+                return BadRequest(new { mensaje = $"Producto con ID {item.ProductoId} no encontrado." });
+
+            var precioActual = PrecioProducto.ObtenerPrecioActual(
+                producto,
+                DateTime.UtcNow,
+                tipoCambioUsdAMxn);
+            if (precioActual <= 0)
+                return BadRequest(new { mensaje = $"El precio del producto {producto.Nombre} no es válido." });
+
+            subtotal += precioActual * item.Cantidad;
+            iva += PrecioProducto.ObtenerIva(precioActual, producto) * item.Cantidad;
+        }
+
+        subtotal = decimal.Round(subtotal, 2, MidpointRounding.AwayFromZero);
+        iva = decimal.Round(iva, 2, MidpointRounding.AwayFromZero);
+        var total = subtotal + iva + cotizacion!.CostoMxn;
+
+        return Ok(new
+        {
+            cotizacion.Zona,
+            cotizacion.EstadoDestino,
+            subtotal,
+            iva,
+            costoEnvio = cotizacion.CostoMxn,
+            total,
+            moneda = "MXN"
+        });
     }
 
     private async Task<string> GetAccessTokenAsync()
@@ -108,10 +163,17 @@ public class PayPalController : ControllerBase
                 await _context.SaveChangesAsync();
                 direccionEnvioId = nuevaDireccion.Id;
             }
-            else if (!await _context.DireccionesEnvio.AnyAsync(d => d.Id == direccionEnvioId && d.UsuarioId == usuarioId))
+            var direccion = await _context.DireccionesEnvio
+                .SingleOrDefaultAsync(d => d.Id == direccionEnvioId && d.UsuarioId == usuarioId);
+            if (direccion == null)
             {
                 await transaction.RollbackAsync();
                 return NotFound(new { mensaje = "La dirección no existe o no pertenece al usuario autenticado." });
+            }
+            if (!_tarifaEnvio.TryCotizar(direccion.Estado, out var cotizacionEnvio))
+            {
+                await transaction.RollbackAsync();
+                return BadRequest(new { mensaje = "No se pudo determinar la zona de envío para el estado de destino." });
             }
 
             decimal subtotal = 0;
@@ -170,7 +232,8 @@ public class PayPalController : ControllerBase
             }
             subtotal = decimal.Round(subtotal, 2, MidpointRounding.AwayFromZero);
             iva = decimal.Round(iva, 2, MidpointRounding.AwayFromZero);
-            var calculatedTotal = subtotal + iva;
+            var costoFlete = cotizacionEnvio!.CostoMxn;
+            var calculatedTotal = subtotal + iva + costoFlete;
 
             foreach (var item in groupedItems)
             {
@@ -228,7 +291,7 @@ public class PayPalController : ControllerBase
                 EstadoOrden = "Pendiente",
                 Subtotal = subtotal,
                 Iva = iva,
-                CostoFlete = 0,
+                CostoFlete = costoFlete,
                 Total = calculatedTotal,
                 InventarioReservado = true,
                 InventarioReservaExpiraUtc = DateTime.UtcNow.AddHours(24)

@@ -60,6 +60,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.Configure<PayPalSettings>(builder.Configuration.GetSection("PayPalSettings"));
 builder.Services.AddSingleton(productImageStorage);
 builder.Services.AddSingleton<TipoCambioService>();
+builder.Services.AddSingleton<TarifaEnvioService>();
 builder.Services.AddHostedService<PaypalInventoryReservationCleanupService>();
 builder.Services.AddHostedService<BanxicoTipoCambioService>();
 

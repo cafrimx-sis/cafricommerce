@@ -21,17 +21,20 @@ namespace Ecommerce.API.Controllers
         private readonly ILogger<OrdenesController> _logger;
         private readonly ResendEmailSender _emailSender;
         private readonly TipoCambioService _tipoCambio;
+        private readonly TarifaEnvioService _tarifaEnvio;
 
         public OrdenesController(
             ApplicationDbContext context,
             ILogger<OrdenesController> logger,
             ResendEmailSender emailSender,
-            TipoCambioService tipoCambio)
+            TipoCambioService tipoCambio,
+            TarifaEnvioService tarifaEnvio)
         {
             _context = context;
             _logger = logger;
             _emailSender = emailSender;
             _tipoCambio = tipoCambio;
+            _tarifaEnvio = tarifaEnvio;
         }
 
         [HttpGet("mis-compras")]
@@ -395,8 +398,12 @@ namespace Ecommerce.API.Controllers
                     return BadRequest(new { mensaje = "Dirección inválida o incompleta." });
                 }
 
-                var zona = await _context.ZonasEnvio.FirstOrDefaultAsync(z => z.Estado.ToLower() == direccion.Estado.ToLower());
-                decimal costoFlete = zona?.CostoFlete ?? 450.00m;
+                if (!_tarifaEnvio.TryCotizar(direccion.Estado, out var cotizacionEnvio))
+                {
+                    await transaction.RollbackAsync();
+                    return BadRequest(new { mensaje = "No se pudo determinar la zona de envío para el estado de destino." });
+                }
+                decimal costoFlete = cotizacionEnvio!.CostoMxn;
 
                 decimal subtotal = 0;
                 decimal iva = 0;

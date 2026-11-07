@@ -2,7 +2,7 @@ import { useState } from 'react';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 
-export default function ShippingAddressView({ formData, handleChange, setFormData, onNext, onBack }) {
+export default function ShippingAddressView({ formData, handleChange, setFormData, onNext, onBack, isSubmitting = false }) {
   const [listaColonias, setListaColonias] = useState([]);
   const [loadingCp, setLoadingCp] = useState(false);
 
@@ -181,8 +181,8 @@ export default function ShippingAddressView({ formData, handleChange, setFormDat
           />
         </div>
 
-        <button type="submit" style={styles.primaryButton}>
-          Continuar al pago con BBVA →
+        <button type="submit" disabled={isSubmitting} style={{ ...styles.primaryButton, opacity: isSubmitting ? 0.7 : 1, cursor: isSubmitting ? 'wait' : 'pointer' }}>
+          {isSubmitting ? 'Cotizando envío...' : 'Continuar al pago con PayPal →'}
         </button>
       </form>
     </div>

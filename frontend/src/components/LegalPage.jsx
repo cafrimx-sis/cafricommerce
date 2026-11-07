@@ -70,13 +70,13 @@ const policies = {
   },
   envios: {
     title: 'Envíos, devoluciones y reembolsos',
-    intro: 'Los siguientes puntos son una guía para comunicar las reglas comerciales. Los plazos, costos y condiciones concretos deben ser definidos por CAFRI antes de vender.',
+    intro: 'Las tarifas de envío por zona indicadas a continuación son las vigentes. CAFRI debe definir los plazos, paqueterías y condiciones de devoluciones y reembolsos antes de vender.',
     sections: [
       {
         title: 'Envíos',
         paragraphs: [
-          'La tienda solicita un domicilio y datos de contacto para coordinar la entrega. El costo puede depender del destino y se muestra durante el proceso de compra cuando esté disponible.',
-          'Completar zonas de cobertura, paqueterías, tiempos estimados, costos, tratamiento de retrasos, entregas fallidas y seguimiento de guías.'
+          'El costo de envío se determina por el estado de destino y se muestra antes de pagar: zona Norte $650 MXN y zona Sur $450 MXN. La zona Norte comprende Baja California, Baja California Sur, Chihuahua, Coahuila, Durango, Nuevo León, Sinaloa, Sonora y Tamaulipas; los demás estados de México pertenecen a la zona Sur.',
+          'La paquetería, los tiempos estimados, el tratamiento de retrasos, las entregas fallidas y el seguimiento de guías se coordinan después de confirmar el pedido.'
         ]
       },
       {

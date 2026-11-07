@@ -15,6 +15,8 @@ const initialPayPalOptions = {
 export default function Checkout({ cart = [], total = 0, clearCart, user, onBackToCart }) {
   const [step, setStep] = useState(1);
   const [pagoPaypalExitoso, setPagoPaypalExitoso] = useState(false);
+  const [shippingQuote, setShippingQuote] = useState(null);
+  const [isQuotingShipping, setIsQuotingShipping] = useState(false);
 
   const [formData, setFormData] = useState({
     calle: '',
@@ -78,15 +80,34 @@ export default function Checkout({ cart = [], total = 0, clearCart, user, onBack
 
   const handleCreatePayPalOrder = async () => {
     try {
-      const response = await api.post('/paypal/create-order', {
-        ...construirPayload(),
-        totalAmount: total
-      });
+      const response = await api.post('/paypal/create-order', construirPayload());
       return response.data.id;
     } catch (err) {
       console.error("Error al crear la orden de PayPal en el backend:", err);
-      toast.error("No se pudo iniciar el proceso de pago con PayPal.");
+      toast.error(err.response?.data?.mensaje || "No se pudo iniciar el proceso de pago con PayPal.");
       throw err;
+    }
+  };
+
+  const handleContinueToPayment = async (e) => {
+    e.preventDefault();
+    if (isQuotingShipping) return;
+    setIsQuotingShipping(true);
+    try {
+      const response = await api.post('/paypal/shipping-quote', {
+        estado: formData.estado,
+        items: cart.map(item => ({
+          productoId: item.productoId || item.id,
+          cantidad: item.cantidad
+        }))
+      });
+      setShippingQuote(response.data);
+      setStep(2);
+    } catch (err) {
+      console.error("Error al cotizar el envío:", err);
+      toast.error(err.response?.data?.mensaje || "No se pudo cotizar el envío para esa dirección.");
+    } finally {
+      setIsQuotingShipping(false);
     }
   };
 
@@ -132,7 +153,8 @@ export default function Checkout({ cart = [], total = 0, clearCart, user, onBack
         formData={formData} 
         handleChange={handleChange} 
         setFormData={setFormData}
-        onNext={(e) => { e.preventDefault(); setStep(2); }} 
+        onNext={handleContinueToPayment}
+        isSubmitting={isQuotingShipping}
         onBack={onBackToCart} 
       />
     );
@@ -147,10 +169,19 @@ export default function Checkout({ cart = [], total = 0, clearCart, user, onBack
         <PayPalScriptProvider options={initialPayPalOptions}>
           <div>
             <p className="checkout-total">
-              Total a pagar: <strong>{formatProductPrice(total, 'MXN')}</strong>
+              Productos: <strong>{formatProductPrice(shippingQuote?.subtotal ?? total, 'MXN')}</strong>
+            </p>
+            <p className="checkout-total">
+              IVA: <strong>{formatProductPrice(shippingQuote?.iva ?? 0, 'MXN')}</strong>
+            </p>
+            <p className="checkout-total">
+              Envío ({shippingQuote?.zona}): <strong>{formatProductPrice(shippingQuote?.costoEnvio ?? 0, 'MXN')}</strong>
+            </p>
+            <p className="checkout-total">
+              Total a pagar: <strong>{formatProductPrice(shippingQuote?.total ?? total, 'MXN')}</strong>
             </p>
             <p style={{ margin: '-8px 0 16px', color: '#64748b', fontSize: '0.85rem', lineHeight: 1.5 }}>
-              Los importes de productos en USD se convierten a MXN con el tipo de cambio FIX más reciente de Banxico. PayPal procesará el cargo en MXN.
+              Envío a {shippingQuote?.estadoDestino}. Los importes de productos en USD se convierten a MXN con el tipo de cambio FIX más reciente de Banxico. PayPal procesará el cargo en MXN.
             </p>
             <div style={{ marginBottom: '16px' }}>
               <PayPalButtons 
