@@ -51,7 +51,7 @@ para permitir en CORS el origen HTTPS exacto del frontend, por ejemplo
 Cada producto se captura y se muestra en su moneda (MXN o USD). Los precios
 USD se convierten a MXN con el tipo de cambio FIX más reciente de Banxico al
 calcular órdenes, ventas del Punto de Venta y cargos PayPal. La aplicación
-consulta la tasa al iniciar y cada seis horas; conserva en PostgreSQL la última
+consulta la tasa al iniciar y cada hora; conserva en PostgreSQL la última
 observación disponible si Banxico no responde. El frontend muestra la tasa y
 fecha recibidas desde la API.
 

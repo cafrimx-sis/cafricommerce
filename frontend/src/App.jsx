@@ -83,7 +83,7 @@ function App() {
     };
 
     cargarTipoCambio();
-    const intervalId = window.setInterval(cargarTipoCambio, 6 * 60 * 60 * 1000);
+    const intervalId = window.setInterval(cargarTipoCambio, 60 * 60 * 1000);
     return () => {
       active = false;
       window.clearInterval(intervalId);

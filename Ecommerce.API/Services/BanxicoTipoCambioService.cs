@@ -10,7 +10,7 @@ public sealed class BanxicoTipoCambioService : BackgroundService
 {
     private const string SerieFix = "SF43718";
     private const string UrlSerie = "https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF43718/datos/oportuno";
-    private static readonly TimeSpan IntervaloActualizacion = TimeSpan.FromHours(6);
+    private static readonly TimeSpan IntervaloActualizacion = TimeSpan.FromHours(1);
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IConfiguration _configuration;

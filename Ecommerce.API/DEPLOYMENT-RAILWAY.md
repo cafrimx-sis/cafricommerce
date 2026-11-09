@@ -63,7 +63,7 @@ cadena SQL Server: esa variable prevalece sobre `DATABASE_URL`. No compartas
 credenciales de base de datos en el repositorio ni por chat.
 
 La API consulta el tipo de cambio FIX de Banxico (serie `SF43718`) al iniciar y
-cada seis horas. Guarda el token SIE solo en `Banxico__Token` en las variables
+cada hora. Guarda el token SIE solo en `Banxico__Token` en las variables
 privadas del servicio Railway. Si Banxico no está disponible, la API conserva
 el último tipo de cambio guardado en PostgreSQL; revisa los logs por advertencias
 de actualización. La migración inicial conserva la antigua referencia fija de
